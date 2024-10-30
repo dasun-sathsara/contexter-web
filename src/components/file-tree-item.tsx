@@ -1,6 +1,6 @@
 'use client';
 import { FileNode } from '@/lib/types';
-import { File, Folder, FolderOpen } from 'lucide-react';
+import { File, Folder, FolderOpen, ArrowUpLeft } from 'lucide-react';
 import { useFileStore } from '@/stores/file-store';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +15,9 @@ export function FileTreeItem({ item, onDoubleClick }: FileTreeItemProps) {
     const isCursor = cursorPath === item.path;
     const isSelected = selectedPaths.has(item.path);
     const isBack = item.path === '..';
-    const Icon = isBack ? FolderOpen : item.is_dir ? Folder : File;
+
+    // Better icon selection
+    const Icon = isBack ? ArrowUpLeft : item.is_dir ? (isCursor ? FolderOpen : Folder) : File;
 
     const handleDoubleClick = () => {
         if (onDoubleClick) {
@@ -37,22 +39,54 @@ export function FileTreeItem({ item, onDoubleClick }: FileTreeItemProps) {
     return (
         <div
             className={cn(
-                'flex items-center gap-2 p-1.5 rounded-md cursor-pointer text-sm',
-                isCursor && 'bg-accent',
-                isSelected && 'bg-blue-500/20 dark:bg-blue-500/30 ring-1 ring-blue-500',
-                isCursor && isSelected && 'ring-2 ring-blue-600'
+                'group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer text-sm transition-all duration-200 select-none',
+                'hover:bg-accent/50 hover:scale-[1.01] active:scale-[0.99]',
+                isCursor && 'bg-accent border border-border shadow-sm',
+                isSelected && 'bg-blue-500/15 dark:bg-blue-500/25 ring-1 ring-blue-500/50 shadow-sm',
+                isCursor && isSelected && 'ring-2 ring-blue-600/70 bg-blue-500/20',
+                isBack && 'border-l-2 border-l-muted-foreground/30 bg-muted/30'
             )}
             onClick={handleClick}
             onDoubleClick={handleDoubleClick}
             data-path={item.path}
         >
-            <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-            <span className="truncate flex-grow">{item.name}</span>
+            <Icon className={cn(
+                'h-4 w-4 flex-shrink-0 transition-colors duration-200',
+                isBack
+                    ? 'text-muted-foreground group-hover:text-foreground'
+                    : item.is_dir
+                        ? 'text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300'
+                        : 'text-muted-foreground group-hover:text-foreground',
+                isCursor && !isBack && 'text-foreground'
+            )} />
+
+            <span className={cn(
+                'truncate flex-grow transition-colors duration-200',
+                isBack && 'font-medium text-muted-foreground group-hover:text-foreground',
+                item.is_dir && !isBack && 'font-medium',
+                isCursor && 'text-foreground'
+            )}>
+                {isBack ? 'Back to parent' : item.name}
+            </span>
+
             {settings.showTokenCount && !item.is_dir && (
-                <span className="text-xs text-muted-foreground ml-auto">{tokenDisplay()}</span>
+                <span className={cn(
+                    'text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground ml-auto transition-all duration-200',
+                    'group-hover:bg-muted-foreground/10 group-hover:text-foreground',
+                    isCursor && 'bg-primary/10 text-primary font-medium'
+                )}>
+                    {tokenDisplay()}
+                </span>
             )}
+
             {settings.showTokenCount && item.is_dir && !isBack && (
-                <span className="text-xs font-semibold text-muted-foreground/80 ml-auto">{tokenDisplay()}</span>
+                <span className={cn(
+                    'text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 ml-auto transition-all duration-200',
+                    'group-hover:bg-blue-500/20',
+                    isCursor && 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                )}>
+                    {tokenDisplay()}
+                </span>
             )}
         </div>
     );

@@ -52,9 +52,10 @@ interface FileState {
     clearAll: () => void;
     navigateInto: (path: string) => void; navigateBack: () => void;
     setCursor: (path: string | null) => void; toggleSelection: (path: string) => void;
-    setSelection: (paths: Set<string>) => void; selectAllBelow: () => void;
+    setSelection: (paths: Set<string>) => void;
     setVimMode: (mode: VimMode) => void; setVisualAnchor: (path: string | null) => void;
-    yankToClipboard: () => void; deleteSelected: () => void;
+    yankToClipboard: (pathsToYank?: Set<string>) => void;
+    deleteSelected: (pathsToDelete?: Set<string>) => void;
 }
 
 export const useFileStore = create<FileState>()(
@@ -130,24 +131,14 @@ export const useFileStore = create<FileState>()(
 
                 processFiles: async (files: File[]) => {
                     if (files.length === 0) return;
-
                     set({
-                        isLoading: true,
-                        statusMessage: 'Building file index...',
-                        fileTree: [],
-                        fileMap: new Map(),
-                        selectedPaths: new Set(),
-                        currentFolderPath: null,
-                        navStack: [],
-                        cursorPath: null,
+                        isLoading: true, statusMessage: 'Building file index...',
+                        fileTree: [], fileMap: new Map(), selectedPaths: new Set(),
+                        currentFolderPath: null, navStack: [], cursorPath: null,
                     });
-
-                    // 1️⃣ Establish rootPrefix based on the first dropped entry
                     const firstPath = (files[0] as any).webkitRelativePath || files[0].name;
                     const slashIndex = firstPath.indexOf('/');
                     const rootPrefix = slashIndex > -1 ? firstPath.substring(0, slashIndex + 1) : '';
-
-                    // 2️⃣ Load .gitignore (if present in the root) so we can filter early
                     let gitignoreContent = '';
                     let gitignoreFile: File | undefined;
                     for (const f of files) {
@@ -158,33 +149,23 @@ export const useFileStore = create<FileState>()(
                         }
                     }
                     if (gitignoreFile) gitignoreContent = await gitignoreFile.text();
-
-                    // 3️⃣ Build a fast directory-ignore matcher from .gitignore
                     const shouldIgnore = buildDirIgnoreMatcher(gitignoreContent);
-
-                    // 4️⃣ Pre-filter the incoming file list before any heavy work
                     const preFilteredFiles: File[] = [];
                     const metadata: { path: string; size: number }[] = [];
                     for (const file of files) {
                         const path = (file as any).webkitRelativePath || file.name;
                         const relative = rootPrefix && path.startsWith(rootPrefix) ? path.slice(rootPrefix.length) : path;
-                        if (shouldIgnore(relative)) continue; // Skip ignored entries early ⏩
-
+                        if (shouldIgnore(relative)) continue;
                         preFilteredFiles.push(file);
                         metadata.push({ path, size: file.size });
                     }
-
-                    toast.info(`Indexing ${preFilteredFiles.length} files (after .gitignore)…`);
-
-                    // 5️⃣ Store a lookup map ONLY for the pre-filtered set
+                    toast.info(`Indexing ${preFilteredFiles.length} files (after .gitignore)...`);
                     const fileLookupMap = new Map<string, File>();
                     for (const file of preFilteredFiles) {
                         fileLookupMap.set((file as any).webkitRelativePath || file.name, file);
                     }
                     set({ _fileLookupMap: fileLookupMap });
-
-                    // 6️⃣ Delegate the fine-grained filtering (size, textOnly, etc.) to the WASM worker
-                    set({ statusMessage: 'Filtering files with WASM…' });
+                    set({ statusMessage: 'Filtering files with WASM...' });
                     worker?.postMessage({
                         type: 'filter-files',
                         payload: { metadata, gitignoreContent, rootPrefix, settings: get().settings },
@@ -215,10 +196,13 @@ export const useFileStore = create<FileState>()(
                 navigateInto: (path) => {
                     const { fileMap, currentFolderPath, navStack } = get();
                     const node = fileMap.get(path);
-                    if (node?.is_dir) set({
-                        navStack: [...navStack, currentFolderPath], currentFolderPath: path,
-                        cursorPath: node.children[0]?.path || null,
-                    });
+                    if (node?.is_dir) {
+                        set({
+                            navStack: [...navStack, currentFolderPath],
+                            currentFolderPath: path,
+                            cursorPath: '..', // Set cursor to '..' for consistency when entering a dir
+                        });
+                    }
                 },
 
                 navigateBack: () => {
@@ -238,43 +222,82 @@ export const useFileStore = create<FileState>()(
                     return { selectedPaths: newSelected };
                 }),
                 setSelection: (paths) => set({ selectedPaths: paths }),
-                selectAllBelow: () => set(state => {
-                    if (!state.cursorPath) return {};
-                    const view = state.currentFolderPath ? state.fileMap.get(state.currentFolderPath)?.children || [] : state.fileTree;
-                    const cursorIndex = view.findIndex((item) => item.path === state.cursorPath);
-                    if (cursorIndex === -1) return {};
-                    const newSelected = new Set(state.selectedPaths);
-                    for (let i = cursorIndex; i < view.length; i++) newSelected.add(view[i].path);
-                    return { selectedPaths: newSelected };
-                }),
                 setVimMode: (mode) => set(state => ({ vimMode: mode, visualAnchorPath: mode === 'normal' ? null : state.visualAnchorPath })),
                 setVisualAnchor: (path) => set({ visualAnchorPath: path }),
 
-                yankToClipboard: () => {
+                yankToClipboard: (pathsToYank) => {
                     const { selectedPaths, fileMap, rootFiles } = get();
-                    if (selectedPaths.size === 0) { toast.warning('Nothing selected to copy.'); return; }
+                    const paths = pathsToYank || selectedPaths;
+                    if (paths.size === 0) {
+                        toast.warning('Nothing selected to copy.');
+                        return;
+                    }
+                    // Recursively collect all files under selected paths (including directories)
                     const selectedFilePaths = new Set<string>();
                     const collectFiles = (node: FileNode) => {
-                        if (!node.is_dir) selectedFilePaths.add(node.path); else node.children?.forEach(collectFiles);
+                        if (!node.is_dir) selectedFilePaths.add(node.path);
+                        else if (node.children) node.children.forEach(collectFiles);
                     };
-                    selectedPaths.forEach((path) => { if (fileMap.has(path)) collectFiles(fileMap.get(path)!); });
+                    paths.forEach((path) => {
+                        const node = fileMap.get(path);
+                        if (node) collectFiles(node);
+                    });
+                    // If user selected a file that is not in fileMap (shouldn't happen), fallback to direct path
+                    paths.forEach((path) => {
+                        if (!fileMap.has(path)) selectedFilePaths.add(path);
+                    });
                     const filesToMerge = rootFiles.filter((file) => selectedFilePaths.has(file.path));
-                    if (filesToMerge.length === 0) { toast.warning('Selection contains no files to copy.'); return; }
+                    if (filesToMerge.length === 0) {
+                        toast.warning('Selection contains no files to copy.');
+                        return;
+                    }
                     toast.info(`Copying ${filesToMerge.length} files to clipboard...`);
                     worker?.postMessage({ type: 'merge-files', payload: filesToMerge });
                 },
 
-                deleteSelected: () => {
-                    const { selectedPaths, rootFiles } = get();
-                    if (selectedPaths.size === 0) { toast.warning('Nothing selected to delete.'); return; }
-                    const newRootFiles = rootFiles.filter((file) => !selectedPaths.has(file.path));
-                    set({
-                        statusMessage: `Removed ${selectedPaths.size} items. Re-processing...`,
-                        isLoading: true, rootFiles: newRootFiles, selectedPaths: new Set(),
+                deleteSelected: (pathsToDelete) => {
+                    const { selectedPaths, fileMap, rootFiles, settings } = get();
+                    const paths = pathsToDelete || selectedPaths;
+                    if (paths.size === 0) {
+                        toast.warning('Nothing selected to delete.');
+                        return;
+                    }
+
+                    const filesToDelete = new Set<string>();
+                    const collectFiles = (node: FileNode) => {
+                        if (!node.is_dir) filesToDelete.add(node.path);
+                        else node.children?.forEach(collectFiles);
+                    };
+
+                    paths.forEach((path) => {
+                        if (path === '..') return; // Ignore virtual '..' path
+                        const node = fileMap.get(path);
+                        if (node) {
+                            collectFiles(node);
+                        }
                     });
+
+                    if (filesToDelete.size === 0) {
+                        toast.warning('Selection contains no files to delete.');
+                        return;
+                    }
+
+                    const newRootFiles = rootFiles.filter((file) => !filesToDelete.has(file.path));
+
+                    set({
+                        statusMessage: `Removed ${filesToDelete.size} items. Re-processing...`,
+                        isLoading: true,
+                        rootFiles: newRootFiles,
+                        selectedPaths: new Set(),
+                        vimMode: 'normal',
+                        visualAnchorPath: null,
+                    });
+
+                    toast.info(`Deleting ${filesToDelete.size} files...`);
+
                     worker?.postMessage({
                         type: 'process-files',
-                        payload: { files: newRootFiles, settings: get().settings },
+                        payload: { files: newRootFiles, settings },
                     });
                 },
             };
