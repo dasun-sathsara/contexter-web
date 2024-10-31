@@ -1,6 +1,6 @@
 'use client';
 
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { DropZone } from '@/components/drop-zone';
 import { FileTree } from '@/components/file-tree';
 import { Header } from '@/components/header';

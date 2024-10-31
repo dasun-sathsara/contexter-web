@@ -17,11 +17,11 @@ export function FileTree({ items }: FileTreeProps) {
         return (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/20 rounded-lg border border-dashed">
                 <div className="flex items-center gap-3">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    <span className="text-lg font-medium">Processing files...</span>
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <span className="text-base font-medium">Processing files...</span>
                 </div>
                 <p className="mt-2 text-sm text-center max-w-sm">
-                    Analyzing your project structure and calculating token counts
+                    Analyzing your project structure
                 </p>
             </div>
         );

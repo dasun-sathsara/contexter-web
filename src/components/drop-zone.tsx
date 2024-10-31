@@ -7,11 +7,11 @@ import { UploadCloud, FolderOpen, MousePointer } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function DropZone() {
-    const { processFiles, isLoading } = useFileStore();
+    const { processFiles } = useFileStore();
 
     const onDrop = useCallback(
         (acceptedFiles: File[]) => {
-            const directory = acceptedFiles.find((f) => (f as any).webkitRelativePath.includes('/'));
+            const directory = acceptedFiles.find((f) => (f as File & { webkitRelativePath: string }).webkitRelativePath.includes('/'));
             if (directory) {
                 processFiles(acceptedFiles);
             } else {
@@ -38,10 +38,10 @@ export function DropZone() {
         <div
             {...getRootProps()}
             className={cn(
-                'flex-grow flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl transition-all duration-300 ease-in-out group',
+                'flex-grow flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl transition-colors duration-200 group',
                 isDragActive
-                    ? 'border-primary bg-primary/5 shadow-lg shadow-primary/20 scale-[1.02]'
-                    : 'border-border hover:border-muted-foreground/30 hover:bg-accent/5',
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-muted-foreground/30',
                 'relative min-h-[400px]'
             )}
         >
@@ -50,31 +50,24 @@ export function DropZone() {
             <input
                 type="file"
                 id="folder-upload"
-                {...({ webkitdirectory: '' } as any)}
-                directory=""
+                webkitdirectory=""
                 multiple
                 style={{ display: 'none' }}
                 onChange={handleFolderSelect}
             />
 
-            <div className={cn(
-                'flex flex-col items-center transition-all duration-300',
-                isDragActive ? 'scale-110' : 'group-hover:scale-105'
-            )}>
+            <div className="flex flex-col items-center">
                 <div className="relative">
                     <UploadCloud className={cn(
-                        'h-20 w-20 transition-all duration-300',
+                        'h-20 w-20 transition-colors duration-200',
                         isDragActive
-                            ? 'text-primary animate-pulse'
-                            : 'text-muted-foreground group-hover:text-foreground'
+                            ? 'text-primary'
+                            : 'text-muted-foreground'
                     )} />
-                    {isDragActive && (
-                        <div className="absolute inset-0 h-20 w-20 border-2 border-primary rounded-full animate-ping opacity-30" />
-                    )}
                 </div>
 
                 <h2 className={cn(
-                    'mt-6 text-3xl font-bold text-center transition-colors duration-300',
+                    'mt-6 text-3xl font-bold text-center transition-colors duration-200',
                     isDragActive ? 'text-primary' : 'text-foreground'
                 )}>
                     {isDragActive ? 'Drop your files here!' : 'Get Started with Your Project'}
