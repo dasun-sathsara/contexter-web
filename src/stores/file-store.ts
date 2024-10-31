@@ -342,7 +342,7 @@ export const useFileStore = create<FileState>()(
 
                         try {
                             console.log('Reading files:', filesToRead.length);
-                            
+
                             if (!Array.isArray(filesToRead)) {
                                 throw new Error('filesToRead is not an array');
                             }
@@ -717,7 +717,20 @@ export const useFileStore = create<FileState>()(
 
                         toast.info(`Copying ${filesToMerge.length} files to clipboard...`);
 
-                        workerManager?.postMessage('merge-files', filesToMerge);
+                        // Inline markdown generation and copy
+                        const markdown = filesToMerge.map(file => {
+                            const ext = file.path.split('.').pop()?.toLowerCase() || '';
+                            const language = ext;
+                            return `\`\`\`${language}\n${file.content.trim()}\n\`\`\``;
+                        }).join('\n\n');
+                        try {
+                            await navigator.clipboard.writeText(markdown);
+                            set((state) => { state.statusMessage = 'Copied to clipboard!'; });
+                            toast.success('Copied to clipboard!');
+                        } catch (error) {
+                            console.error('Failed to copy to clipboard:', error);
+                            toast.error('Failed to copy to clipboard');
+                        }
                     },
 
                     deleteSelected: (pathsToDelete) => {

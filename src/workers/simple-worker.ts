@@ -206,6 +206,11 @@ function filterFiles(
 
 // Generate markdown
 function generateMarkdown(files: FileInput[], options: MarkdownOptions = {}): string {
+    // Guard against invalid files
+    if (!files || !Array.isArray(files)) {
+        console.error('generateMarkdown: invalid files array', files);
+        return '';
+    }
     let markdown = '';
 
     if (options.includeHeader) {
