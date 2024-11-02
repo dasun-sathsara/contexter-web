@@ -837,8 +837,6 @@ export const useFileStore = create<FileState>()(
                             state.cursorPath = nextCursorPath;
                         });
 
-                        toast.info(`Deleting ${filesToDelete.size} files...`);
-
                         workerManager?.postMessage('process-files', { files: newRootFiles, settings });
                     },
 

@@ -372,16 +372,16 @@ class MessageHandler {
             );
 
             if (validFiles.length !== files.length) {
-                            console.warn(`Filtered out ${files.length - validFiles.length} invalid files`);
-                        }
+                console.warn(`Filtered out ${files.length - validFiles.length} invalid files`);
+            }
 
-                        const processingOptions = {
-                            textOnly: settings.textOnly ?? true,
-                            hideEmptyFolders: settings.hideEmptyFolders ?? true,
-                            showTokenCount: settings.showTokenCount ?? true,
-                        };
+            const processingOptions = {
+                textOnly: settings.textOnly ?? true,
+                hideEmptyFolders: settings.hideEmptyFolders ?? true,
+                showTokenCount: settings.showTokenCount ?? true,
+            };
 
-                        const result = wasm.process_files(validFiles, processingOptions);            // Enhance result with additional metadata
+            const result = wasm.process_files(validFiles, processingOptions);            // Enhance result with additional metadata
             if (typeof result === 'object' && result !== null) {
                 return {
                     ...(result as Record<string, unknown>),

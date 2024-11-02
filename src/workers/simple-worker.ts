@@ -258,19 +258,20 @@ function generateMarkdown(files: FileInput[], options: MarkdownOptions = {}): st
 // Message handling
 self.onmessage = (event) => {
     const { type, payload, requestId } = event.data;
-    const startTime = performance.now();
 
     try {
         switch (type) {
             case 'filter-files': {
                 const { metadata, gitignoreContent, rootPrefix, settings } = payload;
+                const filteringStartTime = performance.now();
                 const result = filterFiles(metadata, gitignoreContent, rootPrefix, settings);
+                const filteringTime = Math.round(performance.now() - filteringStartTime);
 
                 self.postMessage({
                     type: 'filter-complete',
                     payload: result,
                     requestId,
-                    processingTime: performance.now() - startTime
+                    processingTime: filteringTime
                 });
                 break;
             }
@@ -288,7 +289,9 @@ self.onmessage = (event) => {
 
                 console.log('Processing files:', files.length, 'settings:', settings);
 
+                const processingStartTime = performance.now();
                 const fileTree = buildFileTree(files, settings);
+                const processingTime = Math.round(performance.now() - processingStartTime);
 
                 const totalTokens = fileTree.reduce((sum, node) => sum + (node.token_count || 0), 0);
                 const totalSize = fileTree.reduce((sum, node) => sum + (node.size || 0), 0);
@@ -300,7 +303,7 @@ self.onmessage = (event) => {
                         total_tokens: totalTokens,
                         total_files: files.length,
                         total_size: totalSize,
-                        processing_time_ms: Math.round(performance.now() - startTime)
+                        processing_time_ms: processingTime
                     },
                     requestId
                 });
