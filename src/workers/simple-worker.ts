@@ -277,7 +277,7 @@ self.onmessage = (event) => {
 
             case 'process-files': {
                 const { files, settings } = payload;
-                
+
                 if (!files || !Array.isArray(files)) {
                     throw new Error('Invalid files data: expected array');
                 }
@@ -287,12 +287,12 @@ self.onmessage = (event) => {
                 }
 
                 console.log('Processing files:', files.length, 'settings:', settings);
-                
+
                 const fileTree = buildFileTree(files, settings);
-                
+
                 const totalTokens = fileTree.reduce((sum, node) => sum + (node.token_count || 0), 0);
                 const totalSize = fileTree.reduce((sum, node) => sum + (node.size || 0), 0);
-                
+
                 self.postMessage({
                     type: 'processing-complete',
                     payload: {
@@ -305,7 +305,7 @@ self.onmessage = (event) => {
                     requestId
                 });
                 break;
-            }            case 'merge-files': {
+            } case 'merge-files': {
                 const { files, options } = payload;
                 const markdown = generateMarkdown(files, options);
 

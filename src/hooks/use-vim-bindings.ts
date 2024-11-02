@@ -17,21 +17,12 @@ export const useVimBindings = () => {
     const {
         vimMode,
         cursorPath,
-        visualAnchorPath,
         selectedPaths,
-        fileTree,
         fileMap,
-        currentFolderPath,
         setVimMode,
         setCursor,
         setVisualAnchor,
         setSelection,
-        navigateInto,
-        navigateBack,
-        yankToClipboard,
-        deleteSelected,
-        clearAll,
-        toggleSelection,
     } = store;
 
     // Use refs to avoid stale closures and unnecessary re-renders
@@ -66,26 +57,6 @@ export const useVimBindings = () => {
         return fileTree || [];
     }, []);
 
-    // Optimized cursor movement with bounds checking
-    const moveCursor = useCallback((delta: number) => {
-        const currentView = getCurrentView();
-        if (currentView.length === 0) return;
-
-        const { cursorPath, setCursor, vimMode, setSelection, visualAnchorPath } = storeRef.current;
-        const currentIndex = cursorPath ? currentView.findIndex(item => item.path === cursorPath) : -1;
-        const newIndex = Math.max(0, Math.min(currentView.length - 1, (currentIndex === -1 ? 0 : currentIndex) + delta));
-        const newCursorPath = currentView[newIndex]?.path;
-
-        if (newCursorPath && newCursorPath !== cursorPath) {
-            setCursor(newCursorPath);
-
-            // Update visual selection if in visual mode
-            if (vimMode === 'visual' && visualAnchorPath) {
-                updateVisualSelection(newCursorPath, currentView);
-            }
-        }
-    }, [getCurrentView]);
-
     // Optimized visual selection update
     const updateVisualSelection = useCallback((newCursorPath: string, currentView?: FileNode[]) => {
         const { visualAnchorPath, setSelection } = storeRef.current;
@@ -109,6 +80,26 @@ export const useVimBindings = () => {
         }
         setSelection(newSelection);
     }, [getCurrentView]);
+
+    // Optimized cursor movement with bounds checking
+    const moveCursor = useCallback((delta: number) => {
+        const currentView = getCurrentView();
+        if (currentView.length === 0) return;
+
+        const { cursorPath, setCursor, vimMode, visualAnchorPath } = storeRef.current;
+        const currentIndex = cursorPath ? currentView.findIndex(item => item.path === cursorPath) : -1;
+        const newIndex = Math.max(0, Math.min(currentView.length - 1, (currentIndex === -1 ? 0 : currentIndex) + delta));
+        const newCursorPath = currentView[newIndex]?.path;
+
+        if (newCursorPath && newCursorPath !== cursorPath) {
+            setCursor(newCursorPath);
+
+            // Update visual selection if in visual mode
+            if (vimMode === 'visual' && visualAnchorPath) {
+                updateVisualSelection(newCursorPath, currentView);
+            }
+        }
+    }, [getCurrentView, updateVisualSelection]);
 
     // Enhanced command handlers with better organization
     const commandHandlers = useCallback(() => {
@@ -357,7 +348,7 @@ export const useVimBindings = () => {
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, []); // Empty dependency array since we use refs
+    }, [commandHandlers, getCurrentView]); // Add missing dependencies
 
     // Public API for programmatic control
     return {

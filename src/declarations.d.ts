@@ -21,3 +21,13 @@ declare module '*.worker.ts' {
     }
     export default WebpackWorker;
 }
+
+declare global {
+    namespace React {
+        interface InputHTMLAttributes<T extends HTMLInputElement = HTMLInputElement> {
+            webkitdirectory?: string;
+        }
+    }
+}
+
+export {};
