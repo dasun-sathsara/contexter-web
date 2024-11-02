@@ -1,13 +1,13 @@
 import { SettingsSheet } from './settings-sheet';
 import { ThemeToggle } from './theme-toggle';
-import { FolderCode, Sparkles } from 'lucide-react';
+import { Layers, Sparkles } from 'lucide-react';
 
 export function Header() {
     return (
         <header className="flex items-center justify-between p-6 border-b bg-card/50 backdrop-blur-sm">
             <div className="flex items-center gap-3">
                 <div className="relative">
-                    <FolderCode className="h-7 w-7 text-primary" />
+                    <Layers className="h-7 w-7 text-primary" />
                     <Sparkles className="h-3 w-3 text-primary/60 absolute -top-1 -right-1" />
                 </div>
                 <div className="flex flex-col">

@@ -399,7 +399,10 @@ export const useFileStore = create<FileState>()(
                     workerManager.onMessage('processing-complete', (payload: unknown) => {
                         const result = payload as ProcessingResult;
                         const fileMap = flattenFileTree(result.file_tree);
-                        const { settings, currentFolderPath, cursorPath } = get();
+                        const { settings, currentFolderPath, cursorPath, isLoading } = get();
+
+                        // Check if this is a reprocessing after deletion by checking the status message
+                        const isAfterDeletion = get().statusMessage.includes('Removed') && get().statusMessage.includes('Re-processing');
 
                         const stats: ProcessingStats = {
                             totalFiles: result.total_files,
@@ -443,7 +446,13 @@ export const useFileStore = create<FileState>()(
                             state.fileMap = fileMap;
                             state.isLoading = false;
                             state.processingStats = stats;
-                            state.statusMessage = `Processed ${result.total_files} files${tokenPart}`;
+
+                            // Update status message based on context
+                            if (isAfterDeletion) {
+                                state.statusMessage = `Removed items. ${result.total_files} files remaining${tokenPart}`;
+                            } else {
+                                state.statusMessage = `Processed ${result.total_files} files${tokenPart}`;
+                            }
 
                             // Preserve or reset navigation state based on context
                             if (shouldPreserveNavigation && folderStillExists) {
@@ -457,9 +466,15 @@ export const useFileStore = create<FileState>()(
                             }
                         });
 
-                        toast.success('Files processed successfully!', {
-                            description: `${result.total_files} files processed in ${result.processing_time_ms ?? 0}ms`
-                        });
+                        // Show different toast messages based on context
+                        if (isAfterDeletion) {
+                            // Don't show success toast for deletion reprocessing
+                            console.log(`Reprocessed after deletion: ${result.total_files} files remaining`);
+                        } else {
+                            toast.success('Files processed successfully!', {
+                                description: `${result.total_files} files processed in ${result.processing_time_ms ?? 0}ms`
+                            });
+                        }
                     });
 
                     workerManager.onMessage('processing-error', (payload: unknown) => {

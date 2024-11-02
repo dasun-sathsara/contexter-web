@@ -1,7 +1,7 @@
 'use client';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from './ui/button';
-import { Settings, Eye, Filter, Trash2 } from 'lucide-react';
+import { Settings, ToggleLeft, Sliders, Trash2 } from 'lucide-react';
 import { useFileStore } from '@/stores/file-store';
 import { Label } from './ui/label';
 import { Checkbox } from './ui/checkbox';
@@ -33,7 +33,7 @@ export function SettingsSheet() {
                     {/* Display Options */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                            <Eye className="h-4 w-4 text-primary" />
+                            <ToggleLeft className="h-4 w-4 text-primary" />
                             Display Options
                         </h3>
 
@@ -77,7 +77,7 @@ export function SettingsSheet() {
                     {/* File Filtering */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                            <Filter className="h-4 w-4 text-primary" />
+                            <Sliders className="h-4 w-4 text-primary" />
                             File Filtering
                         </h3>
 

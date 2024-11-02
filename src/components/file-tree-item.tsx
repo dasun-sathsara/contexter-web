@@ -1,6 +1,6 @@
 'use client';
 import { FileNode } from '@/lib/types';
-import { File, Folder, FolderOpen, ArrowUpLeft } from 'lucide-react';
+import { FileText, Folder, FolderOpen, ChevronLeft } from 'lucide-react';
 import { useFileStore } from '@/stores/file-store';
 import { cn } from '@/lib/utils';
 
@@ -17,7 +17,7 @@ export function FileTreeItem({ item, onDoubleClick }: FileTreeItemProps) {
     const isBack = item.path === '..';
 
     // Better icon selection
-    const Icon = isBack ? ArrowUpLeft : item.is_dir ? (isCursor ? FolderOpen : Folder) : File;
+    const Icon = isBack ? ChevronLeft : item.is_dir ? (isCursor ? FolderOpen : Folder) : FileText;
 
     const handleDoubleClick = () => {
         if (onDoubleClick) {

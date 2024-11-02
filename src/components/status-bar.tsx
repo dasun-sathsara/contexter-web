@@ -2,7 +2,7 @@
 import { useFileStore } from '@/stores/file-store';
 import { Separator } from './ui/separator';
 import { cn } from '@/lib/utils';
-import { Eye, CheckSquare, Keyboard, Info } from 'lucide-react';
+import { Zap, CheckCircle, Command, Info } from 'lucide-react';
 
 export function StatusBar() {
     const { vimMode, statusMessage, selectedPaths } = useFileStore();
@@ -15,7 +15,7 @@ export function StatusBar() {
             <div className="flex items-center gap-4">
                 {/* Vim Mode Indicator */}
                 <div className="flex items-center gap-2">
-                    <Keyboard className="h-3 w-3 text-muted-foreground" />
+                    <Command className="h-3 w-3 text-muted-foreground" />
                     <span
                         className={cn(
                             'font-bold px-2 py-1 rounded text-xs uppercase tracking-wide',
@@ -42,7 +42,7 @@ export function StatusBar() {
                 {selectionText && (
                     <>
                         <div className="flex items-center gap-2">
-                            <CheckSquare className="h-3 w-3 text-blue-500" />
+                            <CheckCircle className="h-3 w-3 text-blue-500" />
                             <span className="font-medium text-blue-600 dark:text-blue-400">
                                 {selectionText}
                             </span>
@@ -53,7 +53,7 @@ export function StatusBar() {
 
                 {/* Vim Keybindings Help */}
                 <div className="flex items-center gap-2 text-muted-foreground/70">
-                    <Eye className="h-3 w-3" />
+                    <Zap className="h-3 w-3" />
                     <span className="hidden sm:inline">
                         Navigation: <kbd className="px-1 py-0.5 text-xs bg-muted rounded font-mono">j/k</kbd>{' '}
                         <kbd className="px-1 py-0.5 text-xs bg-muted rounded font-mono">h/l</kbd>

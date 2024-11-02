@@ -4,7 +4,7 @@ import { FileNode } from '@/lib/types';
 import { ScrollArea } from './ui/scroll-area';
 import { FileTreeItem } from './file-tree-item';
 import { useFileStore } from '@/stores/file-store';
-import { Loader2, FolderTree } from 'lucide-react';
+import { Loader2, FolderTree, FileIcon } from 'lucide-react';
 
 interface FileTreeProps {
     items: FileNode[];
@@ -54,7 +54,7 @@ export function FileTree({ items }: FileTreeProps) {
 
                     {items.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                            <FolderTree className="h-12 w-12 mb-3 opacity-50" />
+                            <FileIcon className="h-12 w-12 mb-3 opacity-50" />
                             <p className="text-sm font-medium">No items to display</p>
                             <p className="text-xs mt-1">This folder appears to be empty</p>
                         </div>

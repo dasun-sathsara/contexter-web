@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useFileStore } from '@/stores/file-store';
-import { UploadCloud, FolderOpen, MousePointer } from 'lucide-react';
+import { UploadCloud, FolderPlus, MousePointer, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function DropZone() {
@@ -64,6 +64,7 @@ export function DropZone() {
                             ? 'text-primary'
                             : 'text-muted-foreground'
                     )} />
+                    <Sparkles className="h-6 w-6 text-primary/60 absolute -top-1 -right-1 animate-pulse" />
                 </div>
 
                 <h2 className={cn(
@@ -96,7 +97,7 @@ export function DropZone() {
                             'hover:scale-105 hover:shadow-md active:scale-95'
                         )}
                     >
-                        <FolderOpen className="h-4 w-4" />
+                        <FolderPlus className="h-4 w-4" />
                         Browse Folder
                     </label>
                 </div>
