@@ -11,13 +11,8 @@ export function DropZone() {
 
     const onDrop = useCallback(
         (acceptedFiles: File[]) => {
-            const directory = acceptedFiles.find((f) => (f as File & { webkitRelativePath: string }).webkitRelativePath.includes('/'));
-            if (directory) {
-                processFiles(acceptedFiles);
-            } else {
-                // If only files are dropped, we can handle them as well
-                processFiles(acceptedFiles);
-            }
+            // Process all dropped files/folders consistently
+            processFiles(acceptedFiles);
         },
         [processFiles]
     );

@@ -499,7 +499,7 @@ pub fn merge_files_to_markdown(
         let language = detect_language(&file.path);
         
         if options.include_path_headers {
-            output.push_str(&format!("## {}\n\n", file.path));
+            output.push_str(&format!("#### File: {}\n\n", file.path));
         }
 
         // Add file stats if requested

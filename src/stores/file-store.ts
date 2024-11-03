@@ -768,20 +768,16 @@ export const useFileStore = create<FileState>()(
 
                         toast.info(`Copying ${filesToMerge.length} files to clipboard...`);
 
-                        // Inline markdown generation and copy
-                        const markdown = filesToMerge.map(file => {
-                            const ext = file.path.split('.').pop()?.toLowerCase() || '';
-                            const language = ext;
-                            return `\`\`\`${language}\n${file.content.trim()}\n\`\`\``;
-                        }).join('\n\n');
-                        try {
-                            await navigator.clipboard.writeText(markdown);
-                            set((state) => { state.statusMessage = 'Copied to clipboard!'; });
-                            toast.success('Copied to clipboard!');
-                        } catch (error) {
-                            console.error('Failed to copy to clipboard:', error);
-                            toast.error('Failed to copy to clipboard');
-                        }
+                        // Use WASM for high-performance markdown generation
+                        workerManager?.postMessage('merge-files', {
+                            files: filesToMerge,
+                            options: {
+                                includeHeader: false,
+                                includeToc: false,
+                                includePathHeaders: true,
+                                includeStats: false,
+                            }
+                        });
                     },
 
                     deleteSelected: (pathsToDelete) => {

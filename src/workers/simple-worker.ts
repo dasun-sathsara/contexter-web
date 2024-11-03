@@ -1,9 +1,66 @@
 /**
- * Simplified Worker for File Processing
- * This worker handles file processing without complex WASM dependencies
+ * High-Performance Worker for File Processing with WASM Support
+ * This worker handles file processing using WASM for maximum performance
  */
 
 import { FileInput } from '@/lib/types';
+
+// WASM Module Interface
+interface WasmModule {
+    merge_files_to_markdown: (files: FileInput[], options: {
+        include_header: boolean;
+        include_toc: boolean;
+        include_path_headers: boolean;
+        include_stats: boolean;
+    }) => string;
+    filter_files: (metadata: FileMetadata[], gitignoreContent: string, rootPrefix: string, options: FilterSettings) => { paths: string[] };
+    process_files: (files: FileInput[], options: ProcessingSettings) => {
+        file_tree: FileNode[];
+        total_tokens: number;
+        total_files: number;
+        total_size: number;
+        processing_time_ms: number;
+    };
+}
+
+// Global WASM instance
+let wasmModule: WasmModule | null = null;
+let wasmLoadPromise: Promise<WasmModule | null> | null = null;
+
+// Load WASM module using dynamic import
+async function loadWasm(): Promise<WasmModule | null> {
+    if (wasmModule) {
+        return wasmModule;
+    }
+
+    if (wasmLoadPromise) {
+        return wasmLoadPromise;
+    }
+
+    wasmLoadPromise = (async () => {
+        try {
+            // Use dynamic import to load WASM module at runtime
+            const wasmUrl = '/contexter_wasm.js';
+            const wasmImport = await import(/* webpackIgnore: true */ wasmUrl);
+            await wasmImport.default();
+
+            console.log('WASM module loaded successfully');
+
+            wasmModule = {
+                merge_files_to_markdown: wasmImport.merge_files_to_markdown,
+                filter_files: wasmImport.filter_files,
+                process_files: wasmImport.process_files,
+            };
+
+            return wasmModule;
+        } catch (error) {
+            console.warn('Failed to load WASM, falling back to JavaScript:', error);
+            return null;
+        }
+    })();
+
+    return wasmLoadPromise;
+}
 
 interface FileMetadata {
     path: string;
@@ -204,13 +261,37 @@ function filterFiles(
         .map(meta => meta.path);
 }
 
-// Generate markdown
-function generateMarkdown(files: FileInput[], options: MarkdownOptions = {}): string {
+// Generate markdown using WASM when available, fallback to JavaScript
+async function generateMarkdown(files: FileInput[], options: MarkdownOptions = {}): Promise<string> {
     // Guard against invalid files
     if (!files || !Array.isArray(files)) {
         console.error('generateMarkdown: invalid files array', files);
         return '';
     }
+
+    try {
+        // Try to use WASM for maximum performance
+        const wasm = await loadWasm();
+        if (wasm && wasm.merge_files_to_markdown) {
+            console.log('Using WASM for markdown generation');
+            return wasm.merge_files_to_markdown(files, {
+                include_header: options.includeHeader || false,
+                include_toc: options.includeToc || false,
+                include_path_headers: options.includePathHeaders !== false, // Default to true
+                include_stats: options.includeStats || false,
+            });
+        }
+    } catch (error) {
+        console.warn('WASM markdown generation failed, falling back to JavaScript:', error);
+    }
+
+    // Fallback to JavaScript implementation
+    console.log('Using JavaScript fallback for markdown generation');
+    return generateMarkdownFallback(files, options);
+}
+
+// JavaScript fallback implementation
+function generateMarkdownFallback(files: FileInput[], options: MarkdownOptions = {}): string {
     let markdown = '';
 
     if (options.includeHeader) {
@@ -230,7 +311,7 @@ function generateMarkdown(files: FileInput[], options: MarkdownOptions = {}): st
         if (i > 0) markdown += '\n\n';
 
         if (options.includePathHeaders) {
-            markdown += `## ${file.path}\n\n`;
+            markdown += `#### File: ${file.path}\n\n`;
         }
 
         if (options.includeStats) {
@@ -256,7 +337,7 @@ function generateMarkdown(files: FileInput[], options: MarkdownOptions = {}): st
 }
 
 // Message handling
-self.onmessage = (event) => {
+self.onmessage = async (event) => {
     const { type, payload, requestId } = event.data;
 
     try {
@@ -310,12 +391,21 @@ self.onmessage = (event) => {
                 break;
             } case 'merge-files': {
                 const { files, options } = payload;
-                const markdown = generateMarkdown(files, options);
 
-                self.postMessage({
-                    type: 'markdown-result',
-                    payload: markdown,
-                    requestId
+                // Handle async markdown generation
+                generateMarkdown(files, options).then(markdown => {
+                    self.postMessage({
+                        type: 'markdown-result',
+                        payload: markdown,
+                        requestId
+                    });
+                }).catch(error => {
+                    console.error('Markdown generation failed:', error);
+                    self.postMessage({
+                        type: 'processing-error',
+                        payload: `Markdown generation failed: ${error.message || error}`,
+                        requestId
+                    });
                 });
                 break;
             }

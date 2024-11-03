@@ -222,9 +222,7 @@ export const useVimBindings = () => {
                 }
             },
             clearAllFiles: () => {
-                if (confirm('Are you sure you want to clear all files? This cannot be undone.')) {
-                    clearAll();
-                }
+                clearAll();
             },
         };
     }, [getCurrentView, moveCursor, updateVisualSelection]);
