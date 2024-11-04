@@ -39,28 +39,34 @@ export function FileTreeItem({ item, onDoubleClick }: FileTreeItemProps) {
     return (
         <div
             className={cn(
-                // Base styles with minimal, clean design
-                'group relative flex items-center gap-2.5 px-2.5 py-1.5 rounded-md cursor-pointer text-sm select-none',
-                'transition-colors duration-150 ease-out',
+                // Base styles with slightly larger design and subtle animations
+                'group relative flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm select-none',
+                'transition-all duration-200 ease-out',
+                'hover:scale-[1.01] hover:shadow-sm',
 
-                // Subtle hover state
-                'hover:bg-muted/40',
+                // Subtle hover state with enhanced background
+                'hover:bg-muted/50',
 
-                // Cursor state (primary focus indicator)
+                // Cursor state (primary focus indicator) with subtle glow
                 isCursor && [
-                    'bg-muted/60',
-                    'text-foreground'
+                    'bg-muted/70 shadow-sm',
+                    'text-foreground',
+                    'ring-1 ring-primary/20'
                 ],
 
-                // Selection state (secondary indicator)
+                // Selection state (secondary indicator) with enhanced visuals
                 isSelected && [
-                    'bg-blue-50 dark:bg-blue-950/30',
-                    'text-blue-900 dark:text-blue-100'
+                    'bg-blue-50 dark:bg-blue-950/40',
+                    'text-blue-900 dark:text-blue-100',
+                    'shadow-sm shadow-blue-500/10',
+                    'ring-1 ring-blue-500/20'
                 ],
 
                 // Combined cursor + selection state
                 isCursor && isSelected && [
-                    'bg-blue-100 dark:bg-blue-900/40'
+                    'bg-blue-100 dark:bg-blue-900/50',
+                    'shadow-md shadow-blue-500/20',
+                    'ring-1 ring-blue-500/30'
                 ],
 
                 // Back button special styling
@@ -72,10 +78,11 @@ export function FileTreeItem({ item, onDoubleClick }: FileTreeItemProps) {
             onDoubleClick={handleDoubleClick}
             data-path={item.path}
         >
-            {/* Icon with subtle styling */}
+            {/* Icon with enhanced styling and animations */}
             <div className="relative flex-shrink-0">
                 <Icon className={cn(
-                    'h-4 w-4 transition-colors duration-150',
+                    'h-4 w-4 transition-all duration-200 ease-out',
+                    'group-hover:scale-110',
 
                     // Base icon colors
                     isBack
@@ -84,20 +91,20 @@ export function FileTreeItem({ item, onDoubleClick }: FileTreeItemProps) {
                             ? 'text-blue-600 dark:text-blue-400'
                             : 'text-muted-foreground',
 
-                    // State colors
-                    isCursor && !isBack && 'text-foreground',
-                    isSelected && !isBack && 'text-blue-700 dark:text-blue-300'
+                    // State colors with enhanced contrast
+                    isCursor && !isBack && 'text-foreground scale-105',
+                    isSelected && !isBack && 'text-blue-700 dark:text-blue-300 scale-105'
                 )} />
 
-                {/* Minimal selection indicator */}
+                {/* Enhanced selection indicator with pulse animation */}
                 {isSelected && !isBack && (
-                    <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shadow-sm shadow-blue-500/50" />
                 )}
             </div>
 
-            {/* File/folder name with clean typography */}
+            {/* File/folder name with enhanced typography and animations */}
             <span className={cn(
-                'truncate flex-grow transition-colors duration-150',
+                'truncate flex-grow transition-all duration-200 ease-out',
 
                 // Base typography
                 item.is_dir && !isBack && 'font-medium',
@@ -105,46 +112,48 @@ export function FileTreeItem({ item, onDoubleClick }: FileTreeItemProps) {
                 // Back button styling
                 isBack && 'font-medium text-muted-foreground',
 
-                // State typography
-                isCursor && 'text-foreground',
-                isSelected && !isBack && 'text-blue-900 dark:text-blue-100'
+                // State typography with subtle transformations
+                isCursor && 'text-foreground font-medium',
+                isSelected && !isBack && 'text-blue-900 dark:text-blue-100 font-medium'
             )}>
                 {isBack ? 'Back to parent' : item.name}
             </span>
 
-            {/* Token count for files */}
+            {/* Token count for files with enhanced styling */}
             {settings.showTokenCount && !item.is_dir && (
                 <span className={cn(
-                    'text-xs px-2 py-0.5 rounded font-medium ml-auto',
-                    'bg-muted/50 text-muted-foreground',
-                    'transition-colors duration-150',
+                    'text-xs px-2 py-1 rounded-md font-medium ml-auto',
+                    'bg-muted/60 text-muted-foreground',
+                    'transition-all duration-200 ease-out',
+                    'hover:scale-105',
 
-                    // State colors
-                    isCursor && 'bg-primary/10 text-primary',
-                    isSelected && 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                    // State colors with enhanced visibility
+                    isCursor && 'bg-primary/15 text-primary shadow-sm',
+                    isSelected && 'bg-blue-500/15 text-blue-600 dark:text-blue-400 shadow-sm shadow-blue-500/20'
                 )}>
                     {tokenDisplay()}
                 </span>
             )}
 
-            {/* Token count for directories */}
+            {/* Token count for directories with enhanced styling */}
             {settings.showTokenCount && item.is_dir && !isBack && (
                 <span className={cn(
-                    'text-xs px-2 py-0.5 rounded font-medium ml-auto',
-                    'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-                    'transition-colors duration-150',
+                    'text-xs px-2 py-1 rounded-md font-medium ml-auto',
+                    'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+                    'transition-all duration-200 ease-out',
+                    'hover:scale-105 shadow-sm',
 
-                    // State colors
-                    isCursor && 'bg-blue-500/20 text-blue-700 dark:text-blue-300',
-                    isSelected && 'bg-blue-500/25 text-blue-800 dark:text-blue-200'
+                    // State colors with enhanced visibility
+                    isCursor && 'bg-blue-500/25 text-blue-700 dark:text-blue-300 shadow-md',
+                    isSelected && 'bg-blue-500/30 text-blue-800 dark:text-blue-200 shadow-md shadow-blue-500/30'
                 )}>
                     {tokenDisplay()}
                 </span>
             )}
 
-            {/* Minimal selection indicator line */}
+            {/* Enhanced selection indicator line with gradient */}
             {isSelected && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3 bg-blue-500 rounded-r" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-gradient-to-b from-blue-400 to-blue-600 rounded-r shadow-sm" />
             )}
         </div>
     );

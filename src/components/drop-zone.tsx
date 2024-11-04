@@ -34,9 +34,10 @@ export function DropZone() {
             {...getRootProps()}
             className={cn(
                 'flex-grow flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl transition-all duration-300 ease-out group',
+                'animate-in fade-in-50 slide-in-from-bottom-4 duration-700',
                 isDragActive
                     ? 'border-primary bg-primary/5 scale-[1.02] shadow-lg shadow-primary/10'
-                    : 'border-border hover:border-muted-foreground/30 hover:bg-muted/20',
+                    : 'border-border hover:border-muted-foreground/30 hover:bg-muted/20 hover:scale-[1.01]',
                 'relative min-h-[400px]'
             )}
         >
@@ -51,13 +52,13 @@ export function DropZone() {
                 onChange={handleFolderSelect}
             />
 
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center animate-in slide-in-from-bottom-2 duration-500 delay-100">
                 <div className="relative">
                     <UploadCloud className={cn(
                         'h-20 w-20 transition-all duration-300 ease-out',
                         isDragActive
-                            ? 'text-primary scale-110'
-                            : 'text-muted-foreground group-hover:scale-105'
+                            ? 'text-primary scale-110 animate-pulse'
+                            : 'text-muted-foreground group-hover:scale-105 group-hover:text-primary/70'
                     )} />
                     <Sparkles className="h-6 w-6 text-primary/60 absolute -top-1 -right-1 animate-pulse" />
                 </div>
@@ -69,14 +70,14 @@ export function DropZone() {
                     {isDragActive ? 'Drop your files here!' : 'Get Started with Your Project'}
                 </h2>
 
-                <p className="mt-3 text-base text-muted-foreground text-center max-w-md transition-opacity duration-200">
+                <p className="mt-3 text-base text-muted-foreground text-center max-w-md transition-all duration-200">
                     {isDragActive
                         ? 'Release to process your files and folders'
                         : 'Drag and drop your project folder or individual files to analyze their structure and generate context'
                     }
                 </p>
 
-                <div className="flex items-center gap-3 mt-8">
+                <div className="flex items-center gap-3 mt-8 animate-in slide-in-from-bottom-1 duration-500 delay-300">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <MousePointer className="h-4 w-4" />
                         <span>Drag & drop</span>
@@ -97,7 +98,7 @@ export function DropZone() {
                     </label>
                 </div>
 
-                <div className="mt-6 text-xs text-muted-foreground/70 text-center">
+                <div className="mt-6 text-xs text-muted-foreground/70 text-center animate-in fade-in-50 duration-500 delay-500">
                     Supports all text-based files • Respects .gitignore • Processes locally
                 </div>
             </div>
