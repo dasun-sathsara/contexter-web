@@ -120,39 +120,15 @@
 }
 
 @layer utilities {
-    /* Enhanced micro-animations for file tree */
+    /* Minimal micro-animations for file tree */
     .animate-in {
-        animation-duration: 0.3s;
-        animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+        animation-duration: 0.2s;
+        animation-timing-function: ease-out;
         animation-fill-mode: both;
     }
 
     .fade-in-50 {
         animation-name: fadeIn;
-        opacity: 0;
-    }
-
-    .slide-in-from-left-1 {
-        animation-name: slideInFromLeft;
-        transform: translateX(-4px);
-        opacity: 0;
-    }
-
-    .slide-in-from-left-2 {
-        animation-name: slideInFromLeft;
-        transform: translateX(-8px);
-        opacity: 0;
-    }
-
-    .slide-in-from-right-2 {
-        animation-name: slideInFromRight;
-        transform: translateX(8px);
-        opacity: 0;
-    }
-
-    .zoom-in-50 {
-        animation-name: zoomIn;
-        transform: scale(0.5);
         opacity: 0;
     }
 
@@ -162,31 +138,10 @@
         }
     }
 
-    @keyframes slideInFromLeft {
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-
-    @keyframes slideInFromRight {
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-
-    @keyframes zoomIn {
-        to {
-            transform: scale(1);
-            opacity: 1;
-        }
-    }
-
     /* Smooth hover transitions */
-    .transition-all {
-        transition-property: all;
-        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    .transition-colors {
+        transition-property: color, background-color, border-color;
+        transition-timing-function: ease-out;
         transition-duration: 150ms;
     }
 
@@ -194,7 +149,7 @@
     .focus-visible\:ring-ring\/50:focus-visible {
         outline: 2px solid transparent;
         outline-offset: 2px;
-        ring-width: 3px;
+        ring-width: 2px;
         ring-color: rgb(var(--ring) / 0.5);
     }
 }
