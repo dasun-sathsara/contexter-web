@@ -311,7 +311,7 @@ function generateMarkdownFallback(files: FileInput[], options: MarkdownOptions =
         if (i > 0) markdown += '\n\n';
 
         if (options.includePathHeaders) {
-            markdown += `#### File: ${file.path}\n\n`;
+            markdown += `#### File: \`${file.path}\`\n\n`;
         }
 
         if (options.includeStats) {
