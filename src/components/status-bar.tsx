@@ -11,60 +11,70 @@ export function StatusBar() {
     const selectionText = selectedPaths.size > 0 ? `${selectedPaths.size} selected` : '';
 
     return (
-        <footer className="flex items-center justify-between p-3 border-t bg-muted/30 text-xs">
+        <footer className="flex items-center justify-between p-3 border-t bg-gradient-to-r from-muted/20 via-muted/30 to-muted/20 backdrop-blur-sm text-xs">
             <div className="flex items-center gap-4">
-                {/* Vim Mode Indicator */}
-                <div className="flex items-center gap-2">
-                    <Command className="h-3 w-3 text-muted-foreground" />
+                {/* Enhanced Vim Mode Indicator */}
+                <div className="flex items-center gap-2 group">
+                    <Command className="h-3 w-3 text-muted-foreground transition-transform group-hover:scale-110" />
                     <span
                         className={cn(
-                            'font-bold px-2 py-1 rounded text-xs uppercase tracking-wide',
+                            'font-bold px-2.5 py-1 rounded-md text-xs uppercase tracking-wide transition-all duration-200',
+                            'border shadow-sm',
                             vimMode === 'visual'
-                                ? 'bg-red-500 text-white shadow-sm'
-                                : 'bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20'
+                                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white border-red-400 shadow-red-500/25'
+                                : 'bg-gradient-to-r from-green-500/10 to-green-500/20 text-green-700 dark:text-green-400 border-green-500/25 shadow-green-500/10'
                         )}
                     >
                         {vimModeText}
                     </span>
                 </div>
 
-                <Separator orientation="vertical" className="h-4" />
+                <Separator orientation="vertical" className="h-4 bg-border/50" />
 
-                {/* Status Message */}
+                {/* Enhanced Status Message */}
                 <div className="flex items-center gap-2">
                     <Info className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-muted-foreground">{statusMessage}</span>
+                    <span className="text-muted-foreground font-medium">{statusMessage}</span>
                 </div>
             </div>
 
             <div className="flex items-center gap-4">
-                {/* Selection Count */}
+                {/* Enhanced Selection Count */}
                 {selectionText && (
                     <>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 animate-in slide-in-from-right-2 duration-200">
                             <CheckCircle className="h-3 w-3 text-blue-500" />
-                            <span className="font-medium text-blue-600 dark:text-blue-400">
+                            <span className="font-semibold text-blue-600 dark:text-blue-400 px-2 py-1 bg-blue-500/10 rounded-md border border-blue-500/20">
                                 {selectionText}
                             </span>
                         </div>
-                        <Separator orientation="vertical" className="h-4" />
+                        <Separator orientation="vertical" className="h-4 bg-border/50" />
                     </>
                 )}
 
-                {/* Vim Keybindings Help */}
-                <div className="flex items-center gap-2 text-muted-foreground/70">
+                {/* Enhanced Vim Keybindings Help */}
+                <div className="flex items-center gap-3 text-muted-foreground/70">
                     <Zap className="h-3 w-3" />
-                    <span className="hidden sm:inline">
-                        Navigation: <kbd className="px-1 py-0.5 text-xs bg-muted rounded font-mono">j/k</kbd>{' '}
-                        <kbd className="px-1 py-0.5 text-xs bg-muted rounded font-mono">h/l</kbd>
-                    </span>
-                    <span className="hidden md:inline">
-                        • Select: <kbd className="px-1 py-0.5 text-xs bg-muted rounded font-mono">v</kbd>{' '}
-                        <kbd className="px-1 py-0.5 text-xs bg-muted rounded font-mono">V</kbd>
-                    </span>
-                    <span className="hidden lg:inline">
-                        • Copy: <kbd className="px-1 py-0.5 text-xs bg-muted rounded font-mono">y</kbd>
-                    </span>
+                    <div className="flex items-center gap-2">
+                        <span className="hidden sm:inline text-xs">Navigation:</span>
+                        <div className="flex gap-1">
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/70 rounded font-mono border border-muted-foreground/20 shadow-sm">j</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/70 rounded font-mono border border-muted-foreground/20 shadow-sm">k</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/70 rounded font-mono border border-muted-foreground/20 shadow-sm">h</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/70 rounded font-mono border border-muted-foreground/20 shadow-sm">l</kbd>
+                        </div>
+                    </div>
+                    <div className="hidden md:flex items-center gap-2">
+                        <span className="text-xs">Select:</span>
+                        <div className="flex gap-1">
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/70 rounded font-mono border border-muted-foreground/20 shadow-sm">v</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/70 rounded font-mono border border-muted-foreground/20 shadow-sm">V</kbd>
+                        </div>
+                    </div>
+                    <div className="hidden lg:flex items-center gap-2">
+                        <span className="text-xs">Copy:</span>
+                        <kbd className="px-1.5 py-0.5 text-xs bg-muted/70 rounded font-mono border border-muted-foreground/20 shadow-sm">y</kbd>
+                    </div>
                 </div>
             </div>
         </footer>

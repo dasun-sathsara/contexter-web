@@ -33,10 +33,10 @@ export function DropZone() {
         <div
             {...getRootProps()}
             className={cn(
-                'flex-grow flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl transition-colors duration-200 group',
+                'flex-grow flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl transition-all duration-300 ease-out group',
                 isDragActive
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-muted-foreground/30',
+                    ? 'border-primary bg-primary/5 scale-[1.02] shadow-lg shadow-primary/10'
+                    : 'border-border hover:border-muted-foreground/30 hover:bg-muted/20',
                 'relative min-h-[400px]'
             )}
         >
@@ -54,22 +54,22 @@ export function DropZone() {
             <div className="flex flex-col items-center">
                 <div className="relative">
                     <UploadCloud className={cn(
-                        'h-20 w-20 transition-colors duration-200',
+                        'h-20 w-20 transition-all duration-300 ease-out',
                         isDragActive
-                            ? 'text-primary'
-                            : 'text-muted-foreground'
+                            ? 'text-primary scale-110'
+                            : 'text-muted-foreground group-hover:scale-105'
                     )} />
                     <Sparkles className="h-6 w-6 text-primary/60 absolute -top-1 -right-1 animate-pulse" />
                 </div>
 
                 <h2 className={cn(
-                    'mt-6 text-3xl font-bold text-center transition-colors duration-200',
-                    isDragActive ? 'text-primary' : 'text-foreground'
+                    'mt-6 text-3xl font-bold text-center transition-all duration-300',
+                    isDragActive ? 'text-primary scale-105' : 'text-foreground'
                 )}>
                     {isDragActive ? 'Drop your files here!' : 'Get Started with Your Project'}
                 </h2>
 
-                <p className="mt-3 text-base text-muted-foreground text-center max-w-md">
+                <p className="mt-3 text-base text-muted-foreground text-center max-w-md transition-opacity duration-200">
                     {isDragActive
                         ? 'Release to process your files and folders'
                         : 'Drag and drop your project folder or individual files to analyze their structure and generate context'
