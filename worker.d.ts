@@ -1,13 +1,1 @@
-declare module 'worker-loader!*' {
-    class WebpackWorker extends Worker {
-        constructor();
-    }
-    export default WebpackWorker;
-}
-
-declare module '*.worker.ts' {
-    class WebpackWorker extends Worker {
-        constructor();
-    }
-    export default WebpackWorker;
-}
+// Worker type definitions are now consolidated in src/declarations.d.ts

@@ -27,7 +27,6 @@ const nextConfig: NextConfig = {
         use: {
           loader: 'worker-loader',
           options: {
-            name: 'static/[name].[hash].worker.js',
             publicPath: '/_next/',
           },
         },

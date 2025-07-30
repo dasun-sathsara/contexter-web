@@ -105,7 +105,7 @@ class WorkerManager {
 
         try {
             this.worker = new Worker(
-                new URL('../workers/simple-worker.ts', import.meta.url)
+                new URL('../workers/file-processor.worker.ts', import.meta.url)
             );
 
             this.worker.onmessage = (event: MessageEvent) => {
