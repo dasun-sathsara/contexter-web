@@ -56,13 +56,13 @@ export function DropZone() {
                 )} />
 
                 <h2 className={cn(
-                    'text-2xl font-semibold mb-3',
+                    'text-2xl font-semibold mb-3 transition-colors duration-300',
                     isDragActive ? 'text-primary' : 'text-foreground'
                 )}>
                     {isDragActive ? 'Drop your files here!' : 'Drop Files or Folders'}
                 </h2>
 
-                <p className="text-muted-foreground mb-8 max-w-sm">
+                <p className="text-muted-foreground mb-8 max-w-sm transition-colors duration-300">
                     {isDragActive
                         ? 'Release to process your files'
                         : 'Drag and drop your project files to get started'
@@ -71,14 +71,14 @@ export function DropZone() {
 
                 <div className="flex flex-col sm:flex-row gap-3">
                     <Button variant="outline" asChild>
-                        <label htmlFor="folder-upload" className="cursor-pointer">
-                            <Folder className="h-4 w-4 mr-2" />
+                        <label htmlFor="folder-upload" className="cursor-pointer transition-colors duration-300">
+                            <Folder className="h-4 w-4 mr-2 transition-colors duration-300" />
                             Select Folder
                         </label>
                     </Button>
                 </div>
 
-                <div className="mt-8 text-xs text-muted-foreground/70">
+                <div className="mt-8 text-xs text-muted-foreground/70 transition-colors duration-300">
                     Supports text files • Respects .gitignore • Processed locally
                 </div>
             </div>

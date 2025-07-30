@@ -32,15 +32,15 @@ export function FileTree({ items }: FileTreeProps) {
     }
 
     return (
-        <div className="h-full flex flex-col bg-card rounded-lg border border-border/50 overflow-hidden shadow-sm">
+        <div className="h-full flex flex-col bg-card rounded-lg border border-border/50 overflow-hidden shadow-sm transition-colors duration-300">
             {/* Header */}
-            <div className="flex items-center gap-3 p-5 border-b border-border/50 bg-gradient-to-r from-card to-muted/10">
-                <FolderTree className="h-4 w-4 text-primary/80" />
-                <h3 className="font-semibold text-sm text-foreground">
+            <div className="flex items-center gap-3 p-5 border-b border-border/50 bg-gradient-to-r from-card to-muted/10 transition-colors duration-300">
+                <FolderTree className="h-5 w-5 text-primary/80 transition-colors duration-300" />
+                <h3 className="font-semibold text-sm text-foreground transition-colors duration-300">
                     {currentFolderPath ? 'Folder Contents' : 'Project Structure'}
                 </h3>
                 <div className="ml-auto">
-                    <span className="text-xs px-3 py-1.5 bg-muted/60 text-muted-foreground rounded-md font-medium shadow-sm border border-border/30">
+                    <span className="text-xs px-3 py-1.5 bg-muted/60 text-muted-foreground rounded-md font-medium shadow-sm border border-border/30 transition-colors duration-300">
                         {items.length}
                     </span>
                 </div>
@@ -62,10 +62,10 @@ export function FileTree({ items }: FileTreeProps) {
 
                         {/* Empty state */}
                         {items.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                                <FileIcon className="h-16 w-16 opacity-20 mb-4" />
-                                <p className="text-sm font-medium mb-2">No items to display</p>
-                                <p className="text-xs opacity-60 text-center max-w-48">
+                            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground transition-colors duration-300">
+                                <FileIcon className="h-20 w-20 opacity-20 mb-4 transition-colors duration-300" />
+                                <p className="text-sm font-medium mb-2 transition-colors duration-300">No items to display</p>
+                                <p className="text-xs opacity-60 text-center max-w-48 transition-colors duration-300">
                                     This folder appears to be empty
                                 </p>
                             </div>

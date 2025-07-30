@@ -18,12 +18,12 @@ export default function HomePage() {
     const showDropZone = fileTree.length === 0 && !isLoading;
 
     return (
-        <div className="flex flex-col h-screen bg-background">
+        <div className="flex flex-col h-screen bg-background transition-colors duration-300">
             <Header />
-            <main className="flex-grow overflow-hidden">
+            <main className="flex-grow overflow-hidden transition-colors duration-300">
                 <ResizablePanelGroup direction="horizontal" className="h-full">
                     <ResizablePanel defaultSize={100}>
-                        <div className="h-full flex flex-col p-6">
+                        <div className="h-full flex flex-col p-6 transition-colors duration-300">
                             <div className="flex-grow min-h-0">
                                 {showDropZone ? <DropZone /> : <FileTree items={currentView} />}
                             </div>

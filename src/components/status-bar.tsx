@@ -42,8 +42,8 @@ export function StatusBar() {
                 {selectionText && (
                     <>
                         <div className="flex items-center gap-2">
-                            <CheckCircle className="h-3 w-3 text-blue-500" />
-                            <span className="text-blue-600 dark:text-blue-400 px-2 py-0.5 bg-blue-500/10 rounded font-medium">
+                            <CheckCircle className="h-3 w-3 text-blue-500 transition-colors duration-300" />
+                            <span className="text-blue-600 dark:text-blue-400 px-2 py-0.5 bg-blue-500/10 rounded font-medium transition-colors duration-300">
                                 {selectionText}
                             </span>
                         </div>
@@ -52,27 +52,27 @@ export function StatusBar() {
                 )}
 
                 {/* Minimal Vim Keybindings Help */}
-                <div className="flex items-center gap-3 text-muted-foreground/70">
-                    <Zap className="h-3 w-3" />
+                <div className="flex items-center gap-3 text-muted-foreground/70 transition-colors duration-300">
+                    <Zap className="h-3 w-3 transition-colors duration-300" />
                     <div className="flex items-center gap-2">
-                        <span className="hidden sm:inline text-xs">Navigate:</span>
+                        <span className="hidden sm:inline text-xs transition-colors duration-300">Navigate:</span>
                         <div className="flex gap-1">
-                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">j</kbd>
-                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">k</kbd>
-                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">h</kbd>
-                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">l</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">j</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">k</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">h</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">l</kbd>
                         </div>
                     </div>
                     <div className="hidden md:flex items-center gap-2">
-                        <span className="text-xs">Select:</span>
+                        <span className="text-xs transition-colors duration-300">Select:</span>
                         <div className="flex gap-1">
-                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">v</kbd>
-                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">V</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">v</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">V</kbd>
                         </div>
                     </div>
                     <div className="hidden lg:flex items-center gap-2">
-                        <span className="text-xs">Copy:</span>
-                        <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">y</kbd>
+                        <span className="text-xs transition-colors duration-300">Copy:</span>
+                        <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">y</kbd>
                     </div>
                 </div>
             </div>
