@@ -6,9 +6,10 @@ import { useFileStore } from '@/stores/file-store';
 import { UploadCloud, Folder } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
+import { LoadingOverlay } from './loading-overlay';
 
 export function DropZone() {
-    const { processFiles } = useFileStore();
+    const { processFiles, isLoading, statusMessage } = useFileStore();
 
     const onDrop = useCallback(
         (acceptedFiles: File[]) => {
@@ -49,7 +50,18 @@ export function DropZone() {
                 onChange={handleFolderSelect}
             />
 
-            <div className="flex flex-col items-center text-center">
+            {/* Loading overlay */}
+            {isLoading && (
+                <LoadingOverlay 
+                    message={statusMessage || 'Processing files...'}
+                    subMessage="This may take a moment for large folders"
+                />
+            )}
+
+            <div className={cn(
+                "flex flex-col items-center text-center transition-opacity duration-300",
+                isLoading && "opacity-0 pointer-events-none"
+            )}>
                 <UploadCloud className={cn(
                     'h-16 w-16 mb-6 transition-colors duration-300',
                     isDragActive ? 'text-primary' : 'text-muted-foreground'
