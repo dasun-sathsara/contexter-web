@@ -24,7 +24,6 @@ export interface FileInput {
 export type VimMode = 'normal' | 'visual';
 
 export interface Settings {
-    textOnly: boolean;
     hideEmptyFolders: boolean;
     showTokenCount: boolean;
     maxFileSize?: number;

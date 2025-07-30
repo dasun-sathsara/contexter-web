@@ -178,7 +178,6 @@ let workerManager: WorkerManager | null = null;
 
 // Settings interface with validation
 interface Settings {
-    textOnly: boolean;
     hideEmptyFolders: boolean;
     showTokenCount: boolean;
     maxFileSize: number;
@@ -254,7 +253,6 @@ interface FileState {
 
 // Default settings with validation
 const defaultSettings: Settings = {
-    textOnly: true,
     hideEmptyFolders: true,
     showTokenCount: true,
     maxFileSize: 2 * 1024 * 1024, // 2MB
@@ -263,7 +261,6 @@ const defaultSettings: Settings = {
 
 const validateSettings = (settings: Partial<Settings>): Settings => {
     return {
-        textOnly: settings.textOnly ?? defaultSettings.textOnly,
         hideEmptyFolders: settings.hideEmptyFolders ?? defaultSettings.hideEmptyFolders,
         showTokenCount: settings.showTokenCount ?? defaultSettings.showTokenCount,
         maxFileSize: Math.max(1024, Math.min(10 * 1024 * 1024, settings.maxFileSize ?? defaultSettings.maxFileSize)),
@@ -384,7 +381,7 @@ export const useFileStore = create<FileState>()(
 
                             workerManager?.postMessage('process-files', {
                                 files: fileInputs,
-                                settings: get().settings
+                                settings: { ...get().settings, textOnly: true }
                             });
                         } catch (error) {
                             console.error('Error reading files:', error);
@@ -582,7 +579,7 @@ export const useFileStore = create<FileState>()(
                                 metadata,
                                 gitignoreContent,
                                 rootPrefix,
-                                settings: get().settings
+                                settings: { ...get().settings, textOnly: true }
                             });
                         } catch (error) {
                             console.error('Error processing files:', error);
@@ -606,7 +603,7 @@ export const useFileStore = create<FileState>()(
                             state.statusMessage = 'Re-processing files...';
                         });
 
-                        workerManager?.postMessage('process-files', { files: rootFiles, settings });
+                        workerManager?.postMessage('process-files', { files: rootFiles, settings: { ...settings, textOnly: true } });
                     },
 
                     setSettings: (newSettings) => {
@@ -848,7 +845,7 @@ export const useFileStore = create<FileState>()(
                             state.cursorPath = nextCursorPath;
                         });
 
-                        workerManager?.postMessage('process-files', { files: newRootFiles, settings });
+                        workerManager?.postMessage('process-files', { files: newRootFiles, settings: { ...settings, textOnly: true } });
                     },
 
                     // Utilities

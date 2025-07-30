@@ -1,14 +1,14 @@
 'use client';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from './ui/button';
-import { Settings, ToggleLeft, Sliders, Trash2 } from 'lucide-react';
+import { Settings, ToggleLeft } from 'lucide-react';
 import { useFileStore } from '@/stores/file-store';
 import { Label } from './ui/label';
 import { Checkbox } from './ui/checkbox';
 import { Separator } from './ui/separator';
 
 export function SettingsSheet() {
-    const { settings, setSettings, clearAll } = useFileStore();
+    const { settings, setSettings } = useFileStore();
 
     return (
         <Sheet>
@@ -72,59 +72,7 @@ export function SettingsSheet() {
                         </div>
                     </div>
 
-                    <Separator />
 
-                    {/* File Filtering */}
-                    <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                            <Sliders className="h-4 w-4 text-primary" />
-                            File Filtering
-                        </h3>
-
-                        <div className="pl-6">
-                            <div className="flex items-center space-x-3">
-                                <Checkbox
-                                    id="text-only"
-                                    checked={settings.textOnly}
-                                    onCheckedChange={(checked) => setSettings({ textOnly: !!checked })}
-                                />
-                                <div className="grid gap-1.5 leading-none">
-                                    <Label htmlFor="text-only" className="text-sm font-medium">
-                                        Text files only
-                                    </Label>
-                                    <p className="text-xs text-muted-foreground">
-                                        Include only text-based files
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <Separator />
-
-                    {/* Reset Section */}
-                    <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-destructive flex items-center gap-2">
-                            <Trash2 className="h-4 w-4" />
-                            Reset Data
-                        </h3>
-
-                        <div className="pl-6">
-                            <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => {
-                                    if (confirm('Are you sure you want to clear all files? This cannot be undone.')) {
-                                        clearAll();
-                                    }
-                                }}
-                                className="w-full"
-                            >
-                                <Trash2 className="h-3 w-3 mr-2" />
-                                Clear All Files
-                            </Button>
-                        </div>
-                    </div>
                 </div>
             </SheetContent>
         </Sheet>
