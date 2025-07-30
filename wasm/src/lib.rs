@@ -17,14 +17,12 @@ fn get_encoder() -> &'static CoreBPE {
 
 // Core data structures with better documentation and validation
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct FileInput {
     pub path: String,
     pub content: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct FileNode {
     pub path: String,
     pub name: String,
@@ -40,7 +38,6 @@ pub struct FileNode {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct ProcessingResult {
     pub file_tree: Vec<FileNode>,
     pub total_tokens: u32,
@@ -50,7 +47,6 @@ pub struct ProcessingResult {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct FileMetadata {
     pub path: String,
     pub size: u32,
@@ -59,7 +55,6 @@ pub struct FileMetadata {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct FilterOptions {
     pub text_only: bool,
     pub max_file_size: Option<u32>,
@@ -521,7 +516,6 @@ pub fn merge_files_to_markdown(
 // Helper functions and types
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct ProcessingOptions {
     pub text_only: bool,
     pub hide_empty_folders: bool,
@@ -539,7 +533,6 @@ impl Default for ProcessingOptions {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct MarkdownOptions {
     pub include_header: bool,
     pub include_toc: bool,
