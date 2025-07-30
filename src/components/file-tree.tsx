@@ -15,25 +15,25 @@ export function FileTree({ items }: FileTreeProps) {
 
     if (isLoading) {
         return (
-            <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/5 rounded-lg border border-border/50 animate-in fade-in-50 duration-500">
-                <div className="flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-500">
+            <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/5 rounded-lg border border-border/50">
+                <div className="flex items-center gap-3">
                     <Loader2 className="h-6 w-6 animate-spin text-primary/80" />
                     <span className="text-sm font-medium">Processing files...</span>
                 </div>
-                <p className="mt-3 text-xs text-center max-w-sm text-muted-foreground/70 animate-in fade-in-50 duration-700 delay-200">
+                <p className="mt-3 text-xs text-center max-w-sm text-muted-foreground/70">
                     Analyzing your project structure
                 </p>
-                {/* Enhanced progress indicator with pulse animation */}
-                <div className="mt-4 w-32 h-1 bg-muted/40 rounded-full overflow-hidden animate-in slide-in-from-bottom-1 duration-700 delay-300">
-                    <div className="h-full bg-gradient-to-r from-primary/60 to-primary/80 rounded-full animate-pulse shadow-sm shadow-primary/20" style={{ width: '70%' }} />
+                {/* Simple progress indicator */}
+                <div className="mt-4 w-32 h-1 bg-muted/40 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-primary/60 to-primary/80 rounded-full" style={{ width: '70%' }} />
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="h-full flex flex-col bg-card rounded-lg border border-border/50 overflow-hidden animate-in fade-in-50 slide-in-from-bottom-2 duration-500 shadow-sm">
-            {/* Enhanced Header with better typography */}
+        <div className="h-full flex flex-col bg-card rounded-lg border border-border/50 overflow-hidden shadow-sm">
+            {/* Header */}
             <div className="flex items-center gap-3 p-5 border-b border-border/50 bg-gradient-to-r from-card to-muted/10">
                 <FolderTree className="h-4 w-4 text-primary/80" />
                 <h3 className="font-semibold text-sm text-foreground">
@@ -46,13 +46,13 @@ export function FileTree({ items }: FileTreeProps) {
                 </div>
             </div>
 
-            {/* Content Area with enhanced animations */}
+            {/* Content Area */}
             <ScrollArea className="flex-grow">
                 <div className="p-4">
                     <div className="space-y-1">
                         {/* Back navigation */}
                         {currentFolderPath && (
-                            <div className="mb-3 animate-in slide-in-from-top-1 duration-300">
+                            <div className="mb-3">
                                 <FileTreeItem
                                     item={{ path: '..', name: '..', is_dir: true, children: [] }}
                                     onDoubleClick={() => navigateBack()}
@@ -62,27 +62,17 @@ export function FileTree({ items }: FileTreeProps) {
 
                         {/* Empty state */}
                         {items.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground animate-in fade-in-50 duration-500">
-                                <FileIcon className="h-16 w-16 opacity-20 mb-4 animate-pulse" />
+                            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                                <FileIcon className="h-16 w-16 opacity-20 mb-4" />
                                 <p className="text-sm font-medium mb-2">No items to display</p>
                                 <p className="text-xs opacity-60 text-center max-w-48">
                                     This folder appears to be empty
                                 </p>
                             </div>
                         ) : (
-                            /* File list with staggered animations */
-                            <div className="space-y-1 animate-in fade-in-50 duration-300">
+                            <div className="space-y-1">
                                 {items.map((item, index) => (
-                                    <div
-                                        key={`${item.path}-${index}`}
-                                        className="animate-in slide-in-from-left-1 duration-300"
-                                        style={{
-                                            animationDelay: `${index * 30}ms`,
-                                            animationFillMode: 'both'
-                                        }}
-                                    >
-                                        <FileTreeItem item={item} />
-                                    </div>
+                                    <FileTreeItem key={`${item.path}-${index}`} item={item} />
                                 ))}
                             </div>
                         )}

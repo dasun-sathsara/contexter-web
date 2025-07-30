@@ -39,29 +39,27 @@ export function FileTreeItem({ item, onDoubleClick }: FileTreeItemProps) {
     return (
         <div
             className={cn(
-                // Base styles with improved spacing and subtle shadows
+                // Base styles with improved spacing
                 'group relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer text-sm select-none',
-                'transition-all duration-200 ease-out',
-                'hover:bg-muted/60 hover:shadow-sm',
+                'transition-colors duration-150 ease-out',
+                'hover:bg-muted/60',
 
-                // Cursor state (primary focus indicator) with better contrast
+                // Cursor state (primary focus indicator)
                 isCursor && [
-                    'bg-muted/80 shadow-sm border border-border/30',
+                    'bg-muted/80 border border-border/30',
                     'text-foreground',
                 ],
 
-                // Selection state (secondary indicator) with enhanced visuals
+                // Selection state (secondary indicator)
                 isSelected && [
                     'bg-blue-50 dark:bg-blue-950/50',
                     'text-blue-900 dark:text-blue-100',
-                    'shadow-sm shadow-blue-500/10',
                     'border border-blue-500/30'
                 ],
 
                 // Combined cursor + selection state
                 isCursor && isSelected && [
                     'bg-blue-100 dark:bg-blue-900/60',
-                    'shadow-md shadow-blue-500/20',
                     'border border-blue-500/40'
                 ],
 
@@ -74,10 +72,10 @@ export function FileTreeItem({ item, onDoubleClick }: FileTreeItemProps) {
             onDoubleClick={handleDoubleClick}
             data-path={item.path}
         >
-            {/* Icon with enhanced styling */}
+            {/* Icon */}
             <div className="relative flex-shrink-0">
                 <Icon className={cn(
-                    'h-4 w-4 transition-colors duration-200',
+                    'h-4 w-4 transition-colors duration-150',
                     isBack
                         ? 'text-muted-foreground'
                         : item.is_dir
@@ -88,9 +86,9 @@ export function FileTreeItem({ item, onDoubleClick }: FileTreeItemProps) {
                 )} />
             </div>
 
-            {/* File/folder name with enhanced typography */}
+            {/* File/folder name */}
             <span className={cn(
-                'truncate flex-grow transition-colors duration-200',
+                'truncate flex-grow transition-colors duration-150',
                 item.is_dir && !isBack && 'font-medium',
                 isBack && 'font-medium',
                 isCursor && 'text-foreground',
@@ -103,7 +101,7 @@ export function FileTreeItem({ item, onDoubleClick }: FileTreeItemProps) {
             {settings.showTokenCount && !item.is_dir && (
                 <span className={cn(
                     'text-xs px-2 py-1 rounded-md font-medium ml-auto bg-muted/60 text-muted-foreground',
-                    'transition-colors duration-200',
+                    'transition-colors duration-150',
                     isCursor && 'bg-primary/15 text-primary',
                     isSelected && 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
                 )}>
@@ -115,7 +113,7 @@ export function FileTreeItem({ item, onDoubleClick }: FileTreeItemProps) {
             {settings.showTokenCount && item.is_dir && !isBack && (
                 <span className={cn(
                     'text-xs px-2 py-1 rounded-md font-medium ml-auto bg-blue-500/15 text-blue-600 dark:text-blue-400',
-                    'transition-colors duration-200',
+                    'transition-colors duration-150',
                     isCursor && 'bg-blue-500/25 text-blue-700 dark:text-blue-300',
                     isSelected && 'bg-blue-500/30 text-blue-800 dark:text-blue-200'
                 )}>

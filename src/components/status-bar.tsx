@@ -11,14 +11,14 @@ export function StatusBar() {
     const selectionText = selectedPaths.size > 0 ? `${selectedPaths.size} selected` : '';
 
     return (
-        <footer className="flex items-center justify-between p-4 border-t bg-muted/20 text-xs">
+        <footer className="flex items-center justify-between p-4 border-t bg-muted/20 text-xs transition-colors duration-300">
             <div className="flex items-center gap-4">
                 {/* Minimal Vim Mode Indicator */}
                 <div className="flex items-center gap-2">
-                    <Command className="h-3 w-3 text-muted-foreground" />
+                    <Command className="h-3 w-3 text-muted-foreground transition-colors duration-300" />
                     <span
                         className={cn(
-                            'font-medium px-2 py-0.5 rounded text-xs uppercase tracking-wide',
+                            'font-medium px-2 py-0.5 rounded text-xs uppercase tracking-wide transition-colors duration-300',
                             vimMode === 'visual'
                                 ? 'bg-red-500/10 text-red-600 dark:text-red-400'
                                 : 'bg-green-500/10 text-green-600 dark:text-green-400'
@@ -32,8 +32,8 @@ export function StatusBar() {
 
                 {/* Status Message */}
                 <div className="flex items-center gap-2">
-                    <Info className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-muted-foreground">{statusMessage}</span>
+                    <Info className="h-3 w-3 text-muted-foreground transition-colors duration-300" />
+                    <span className="text-muted-foreground transition-colors duration-300">{statusMessage}</span>
                 </div>
             </div>
 
