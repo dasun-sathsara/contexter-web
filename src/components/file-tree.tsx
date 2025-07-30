@@ -32,15 +32,15 @@ export function FileTree({ items }: FileTreeProps) {
     }
 
     return (
-        <div className="h-full flex flex-col bg-card rounded-lg border border-border/50 overflow-hidden animate-in fade-in-50 slide-in-from-bottom-2 duration-500">
-            {/* Enhanced Header with subtle animations */}
-            <div className="flex items-center gap-3 p-4 border-b border-border/50 bg-gradient-to-r from-card to-muted/20">
-                <FolderTree className="h-4 w-4 text-primary/80 animate-pulse" />
-                <h3 className="font-medium text-sm text-foreground">
+        <div className="h-full flex flex-col bg-card rounded-lg border border-border/50 overflow-hidden animate-in fade-in-50 slide-in-from-bottom-2 duration-500 shadow-sm">
+            {/* Enhanced Header with better typography */}
+            <div className="flex items-center gap-3 p-5 border-b border-border/50 bg-gradient-to-r from-card to-muted/10">
+                <FolderTree className="h-4 w-4 text-primary/80" />
+                <h3 className="font-semibold text-sm text-foreground">
                     {currentFolderPath ? 'Folder Contents' : 'Project Structure'}
                 </h3>
                 <div className="ml-auto">
-                    <span className="text-xs px-2.5 py-1 bg-muted/50 text-muted-foreground rounded-md font-medium shadow-sm transition-all duration-200 hover:scale-105">
+                    <span className="text-xs px-3 py-1.5 bg-muted/60 text-muted-foreground rounded-md font-medium shadow-sm border border-border/30">
                         {items.length}
                     </span>
                 </div>
@@ -48,7 +48,7 @@ export function FileTree({ items }: FileTreeProps) {
 
             {/* Content Area with enhanced animations */}
             <ScrollArea className="flex-grow">
-                <div className="p-3">
+                <div className="p-4">
                     <div className="space-y-1">
                         {/* Back navigation */}
                         {currentFolderPath && (

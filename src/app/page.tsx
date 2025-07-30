@@ -23,7 +23,7 @@ export default function HomePage() {
             <main className="flex-grow overflow-hidden">
                 <ResizablePanelGroup direction="horizontal" className="h-full">
                     <ResizablePanel defaultSize={100}>
-                        <div className="h-full flex flex-col p-4">
+                        <div className="h-full flex flex-col p-6">
                             <div className="flex-grow min-h-0">
                                 {showDropZone ? <DropZone /> : <FileTree items={currentView} />}
                             </div>

@@ -11,7 +11,7 @@ export function StatusBar() {
     const selectionText = selectedPaths.size > 0 ? `${selectedPaths.size} selected` : '';
 
     return (
-        <footer className="flex items-center justify-between p-3 border-t bg-muted/20 text-xs">
+        <footer className="flex items-center justify-between p-4 border-t bg-muted/20 text-xs">
             <div className="flex items-center gap-4">
                 {/* Minimal Vim Mode Indicator */}
                 <div className="flex items-center gap-2">
@@ -57,22 +57,22 @@ export function StatusBar() {
                     <div className="flex items-center gap-2">
                         <span className="hidden sm:inline text-xs">Navigate:</span>
                         <div className="flex gap-1">
-                            <kbd className="px-1 py-0.5 text-xs bg-muted/50 rounded font-mono">j</kbd>
-                            <kbd className="px-1 py-0.5 text-xs bg-muted/50 rounded font-mono">k</kbd>
-                            <kbd className="px-1 py-0.5 text-xs bg-muted/50 rounded font-mono">h</kbd>
-                            <kbd className="px-1 py-0.5 text-xs bg-muted/50 rounded font-mono">l</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">j</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">k</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">h</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">l</kbd>
                         </div>
                     </div>
                     <div className="hidden md:flex items-center gap-2">
                         <span className="text-xs">Select:</span>
                         <div className="flex gap-1">
-                            <kbd className="px-1 py-0.5 text-xs bg-muted/50 rounded font-mono">v</kbd>
-                            <kbd className="px-1 py-0.5 text-xs bg-muted/50 rounded font-mono">V</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">v</kbd>
+                            <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">V</kbd>
                         </div>
                     </div>
                     <div className="hidden lg:flex items-center gap-2">
                         <span className="text-xs">Copy:</span>
-                        <kbd className="px-1 py-0.5 text-xs bg-muted/50 rounded font-mono">y</kbd>
+                        <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono">y</kbd>
                     </div>
                 </div>
             </div>

@@ -19,8 +19,8 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" suppressHydrationWarning>
-            <body className={cn('min-h-screen bg-background font-sans antialiased', inter.variable)}>
-                <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+            <body className={cn('min-h-screen bg-background font-sans antialiased transition-colors duration-300', inter.variable)}>
+                <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
                     {children}
                     <Toaster richColors position="bottom-right" />
                 </ThemeProvider>
