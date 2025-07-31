@@ -13,6 +13,7 @@ export function DropZone() {
 
     const onDrop = useCallback(
         (acceptedFiles: File[]) => {
+            console.log('[DropZone] Files dropped:', acceptedFiles);
             processFiles(acceptedFiles);
         },
         [processFiles]
@@ -25,6 +26,7 @@ export function DropZone() {
 
     const handleFolderSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.files) {
+            console.log('[DropZone] Folder selected:', Array.from(event.target.files));
             processFiles(Array.from(event.target.files));
         }
     };
@@ -52,7 +54,7 @@ export function DropZone() {
 
             {/* Loading overlay */}
             {isLoading && (
-                <LoadingOverlay 
+                <LoadingOverlay
                     message={statusMessage || 'Processing files...'}
                     subMessage="This may take a moment for large folders"
                 />

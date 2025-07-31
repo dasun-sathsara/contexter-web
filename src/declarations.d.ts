@@ -4,7 +4,7 @@
 // Allows using `webkitdirectory` on input elements for folder selection.
 declare global {
     namespace React {
-        interface InputHTMLAttributes<T extends HTMLInputElement = HTMLInputElement> {
+        interface InputHTMLAttributes {
             webkitdirectory?: string;
         }
     }

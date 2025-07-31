@@ -44,6 +44,13 @@ pub struct ProcessingResult {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct FilterResult {
+    pub paths: Vec<String>,
+    #[serde(rename = "processingTimeMs")]
+    pub processing_time_ms: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FileMetadata {
     pub path: String,
     pub size: u32,
@@ -119,6 +126,11 @@ pub fn filter_files(
         .map_err(|e| JsValue::from_str(&format!("Failed to parse metadata: {}", e)))?;
     let options: FilterOptions = serde_wasm_bindgen::from_value(options_js).unwrap_or_default();
     
+    // Log received options for debugging
+    web_sys::console::log_1(&format!("[WASM] Filter options: {:?}", options).into());
+    web_sys::console::log_1(&format!("[WASM] Gitignore content length: {}", gitignore_content.len()).into());
+    web_sys::console::log_1(&format!("[WASM] Root prefix: {}", root_prefix).into());
+
     let text_detector = TextFileDetector::default();
     let mut gitignore_builder = ignore::gitignore::GitignoreBuilder::new(&root_prefix);
     if let Err(e) = gitignore_builder.add_line(None, &gitignore_content) {
@@ -129,13 +141,20 @@ pub fn filter_files(
     let kept_paths: Vec<String> = metadata
         .into_iter()
         .filter(|meta| {
+            let is_dir = meta.path.ends_with('/');
             let relative_path = meta.path.strip_prefix(&root_prefix).unwrap_or(&meta.path);
             
             // Apply gitignore rules first
-            if gitignore.matched(relative_path, false).is_ignore() {
+            if gitignore.matched(relative_path, is_dir).is_ignore() {
                 return false;
             }
 
+            // If it's a directory, we don't apply size/text checks, just keep it for now.
+            // The tree building logic will handle empty directories later.
+            if is_dir {
+                return true;
+            }
+            
             // Check file size limit
             if meta.size > options.max_file_size {
                 return false;
@@ -150,8 +169,13 @@ pub fn filter_files(
         .map(|meta| meta.path)
         .collect();
     
+    web_sys::console::log_1(&format!("[WASM] Kept {} paths after filtering", kept_paths.len()).into());
+
     let processing_time = js_sys::Date::now() - start_time;
-    let result = serde_json::json!({ "paths": kept_paths, "processingTimeMs": processing_time });
+    let result = FilterResult {
+        paths: kept_paths,
+        processing_time_ms: processing_time,
+    };
 
     serde_wasm_bindgen::to_value(&result)
         .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {}", e)))

@@ -6,7 +6,7 @@ import type { FileInput, FilterOptions, MarkdownOptions, ProcessingOptions, Proc
 
 // A type-safe interface for the WASM module's exports.
 type WasmApi = {
-    filter_files(metadata: FileMetadata[], gitignoreContent: string, rootPrefix: string, options: FilterOptions): { paths: string[]; processingTimeMs: number };
+    filter_files(metadata: FileMetadata[], gitignoreContent: string, rootPrefix: string, options: FilterOptions): Map<string, any>;
     process_files(files: FileInput[], options: ProcessingOptions): ProcessingResult;
     merge_files_to_markdown(files: FileInput[], options: MarkdownOptions): string;
 };
@@ -29,7 +29,9 @@ const wasmInitPromise: Promise<WasmApi> = init()
 
 // --- Event Listener ---
 
+
 self.onmessage = async (event: MessageEvent) => {
+    console.log('[Worker] Received message:', event.data);
     const { type, payload } = event.data;
 
     try {
@@ -38,17 +40,28 @@ self.onmessage = async (event: MessageEvent) => {
 
         switch (type) {
             case 'filter-files': {
-                const result = wasm.filter_files(payload.metadata, payload.gitignoreContent, payload.rootPrefix, payload.settings);
+                console.log('[Worker] Calling WASM filter_files with:', payload);
+                const resultMap = wasm.filter_files(payload.metadata, payload.gitignoreContent, payload.rootPrefix, payload.settings);
+                console.log('[Worker] WASM filter_files result:', resultMap);
+                // Convert Map to a plain object before posting back to the main thread.
+                const result = {
+                    paths: resultMap.get('paths'),
+                    processingTimeMs: resultMap.get('processingTimeMs')
+                };
                 self.postMessage({ type: 'filter-complete', payload: result });
                 break;
             }
             case 'process-files': {
+                console.log('[Worker] Calling WASM process_files with:', payload);
                 const result = wasm.process_files(payload.files, payload.settings);
+                console.log('[Worker] WASM process_files result:', result);
                 self.postMessage({ type: 'processing-complete', payload: result });
                 break;
             }
             case 'merge-files': {
+                console.log('[Worker] Calling WASM merge_files_to_markdown with:', payload);
                 const result = wasm.merge_files_to_markdown(payload.files, payload.options);
+                console.log('[Worker] WASM merge_files_to_markdown result:', result);
                 self.postMessage({ type: 'markdown-result', payload: result });
                 break;
             }

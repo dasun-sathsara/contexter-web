@@ -79,12 +79,17 @@ export const useFileStore = create<FileState>()(
         immer((set, get) => {
             // Internal helper to read file contents after filtering.
             const _readAndProcessFiles = async (pathsToRead: string[]) => {
+
                 if (!pendingFiles) {
                     toast.error("An internal error occurred: pending files not found.");
                     set({ isLoading: false, statusMessage: 'Error: Could not find files to read.' });
                     return;
                 }
-
+                if (!Array.isArray(pathsToRead) || pathsToRead.length === 0) {
+                    toast.error("No files to read.");
+                    set({ isLoading: false, statusMessage: 'Error: No files to read.' });
+                    return;
+                }
                 set({ statusMessage: `Reading ${pathsToRead.length} files...` });
 
                 const fileMap = new Map(pendingFiles.map((f) => [f.webkitRelativePath, f]));
@@ -125,10 +130,19 @@ export const useFileStore = create<FileState>()(
 
                     switch (type) {
                         case 'filter-complete': {
-                            _readAndProcessFiles(payload.paths);
+                            console.log('[Store] Filter complete, received:', payload);
+                            if (payload && Array.isArray(payload.paths) && payload.paths.length > 0) {
+                                console.log('[Store] Found', payload.paths.length, 'files to read');
+                                _readAndProcessFiles(payload.paths);
+                            } else {
+                                console.log('[Store] No files found after filtering');
+                                toast.error("No files found to process.");
+                                set({ isLoading: false, statusMessage: 'Error: No files found to process.' });
+                            }
                             break;
                         }
                         case 'processing-complete': {
+                            console.log('[Store] Processing complete, received:', payload);
                             const result = payload as ProcessingResult;
                             const fileMap = new Map<string, FileNode>();
                             const traverse = (nodes: FileNode[]) => {
@@ -138,6 +152,8 @@ export const useFileStore = create<FileState>()(
                                 }
                             };
                             traverse(result.file_tree);
+                            console.log('[Store] Built file map with', fileMap.size, 'entries');
+                            console.log('[Store] File tree root has', result.file_tree.length, 'items');
 
                             set(state => {
                                 state.fileTree = result.file_tree;
@@ -175,12 +191,15 @@ export const useFileStore = create<FileState>()(
 
                 // --- Actions ---
                 processFiles: async (files: File[]) => {
-                    if (files.length === 0) return;
+                    console.log('[Store] processFiles called with:', files);
+                    if (!files || files.length === 0) return;
 
                     set({ isLoading: true, statusMessage: 'Analyzing project structure...', fileTree: [], fileMap: new Map() });
 
                     const filesWithPath = files as FileWithPath[];
+                    console.log('[Store] Files with path:', filesWithPath.length, 'files');
                     const firstPath = filesWithPath[0]?.webkitRelativePath;
+                    console.log('[Store] First file path:', firstPath);
 
                     if (!firstPath) {
                         toast.error("Could not process files.", { description: "The dropped items don't appear to be a folder." });
@@ -193,8 +212,10 @@ export const useFileStore = create<FileState>()(
                     const gitignoreFile = filesWithPath.find((f) => f.webkitRelativePath.endsWith('.gitignore'));
                     const gitignoreContent = gitignoreFile ? await gitignoreFile.text() : '';
                     const rootPrefix = firstPath.substring(0, firstPath.indexOf('/') + 1);
+                    console.log('[Store] Root prefix:', rootPrefix);
 
                     const metadata: FileMetadata[] = filesWithPath.map((f) => ({ path: f.webkitRelativePath, size: f.size }));
+                    console.log('[Store] Metadata for', metadata.length, 'files, sending to worker');
 
                     getWorker()?.postMessage({
                         type: 'filter-files',
@@ -253,7 +274,11 @@ export const useFileStore = create<FileState>()(
                 setCursor: (path) => set({ cursorPath: path }),
                 toggleSelection: (path) => {
                     set(state => {
-                        state.selectedPaths.has(path) ? state.selectedPaths.delete(path) : state.selectedPaths.add(path);
+                        if (state.selectedPaths.has(path)) {
+                            state.selectedPaths.delete(path);
+                        } else {
+                            state.selectedPaths.add(path);
+                        }
                     });
                 },
                 setSelection: (paths) => set({ selectedPaths: new Set(paths) }),

@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "private": true,
     "scripts": {
-        "dev": "npm run copy-wasm && next dev --turbopack",
+        "dev": "npm run copy-wasm && next dev",
         "build": "npm run copy-wasm && next build",
         "start": "next start",
         "lint": "next lint",
