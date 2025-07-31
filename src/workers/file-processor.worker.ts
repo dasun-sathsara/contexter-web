@@ -31,7 +31,6 @@ const wasmInitPromise: Promise<WasmApi> = init()
 
 
 self.onmessage = async (event: MessageEvent) => {
-    console.log('[Worker] Received message:', event.data);
     const { type, payload } = event.data;
 
     try {
@@ -40,23 +39,17 @@ self.onmessage = async (event: MessageEvent) => {
 
         switch (type) {
             case 'filter-files': {
-                console.log('[Worker] Calling WASM filter_files with:', payload);
                 const result = wasm.filter_files(payload.metadata, payload.gitignoreContent, payload.rootPrefix, payload.settings);
-                console.log('[Worker] WASM filter_files result:', result);
                 self.postMessage({ type: 'filter-complete', payload: result });
                 break;
             }
             case 'process-files': {
-                console.log('[Worker] Calling WASM process_files with:', payload);
                 const result = wasm.process_files(payload.files, payload.settings);
-                console.log('[Worker] WASM process_files result:', result);
                 self.postMessage({ type: 'processing-complete', payload: result });
                 break;
             }
             case 'merge-files': {
-                console.log('[Worker] Calling WASM merge_files_to_markdown with:', payload);
                 const result = wasm.merge_files_to_markdown(payload.files, payload.options);
-                console.log('[Worker] WASM merge_files_to_markdown result:', result);
                 self.postMessage({ type: 'markdown-result', payload: result });
                 break;
             }

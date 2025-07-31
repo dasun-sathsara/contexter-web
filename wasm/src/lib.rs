@@ -122,10 +122,6 @@ pub fn filter_files(
     let metadata: Vec<FileMetadata> = serde_wasm_bindgen::from_value(metadata_js)
         .map_err(|e| JsValue::from_str(&format!("Failed to parse metadata: {}", e)))?;
     let options: FilterOptions = serde_wasm_bindgen::from_value(options_js).unwrap_or_default();
-    
-    // Log received options for debugging
-    web_sys::console::log_1(&format!("[WASM] Filter options: {:?}", options).into());
-    web_sys::console::log_1(&format!("[WASM] Gitignore content length: {}", gitignore_content.len()).into());
 
     // Build gitignore patterns from .gitignore content, skipping blank lines and comments
     let mut gitignore_builder = GitignoreBuilder::new(".");
@@ -145,43 +141,53 @@ pub fn filter_files(
 
     let kept_paths: Vec<String> = metadata
         .into_iter()
-        .filter(|meta| {
+        .filter_map(|meta| {
+            // Browser-provided paths for files don't have a trailing slash.
+            // We assume anything without a slash is a file. We don't get directory entries from the browser.
             let is_dir = meta.path.ends_with('/');
             
-            // Strip the root prefix to get paths relative to the project root
+            // Strip the root folder name to get paths relative to the project root,
+            // which is where the .gitignore rules apply.
+            // e.g., "my-project/src/main.js" -> "src/main.js"
             let relative_path = if let Some(first_slash) = meta.path.find('/') {
                 &meta.path[first_slash + 1..]
             } else {
                 &meta.path
             };
             
-            // Apply gitignore rules first - paths are now relative to project root
-            if gitignore.matched(relative_path, is_dir).is_ignore() {
-                return false;
+            // If the relative path is empty (e.g. it was just the root folder), we can't process it.
+            if relative_path.is_empty() {
+                return None;
+            }
+            
+            // Apply gitignore rules.
+            // **FIX**: Use `matched_path_or_any_parents` because we are checking individual flat
+            // paths, not walking a directory tree. This ensures that a rule like "var/"
+            // correctly ignores a file like "var/pakaya.txt" by checking its parent components.
+            if gitignore.matched_path_or_any_parents(relative_path, is_dir).is_ignore() {
+                return None;
             }
 
-            // If it's a directory, keep it (empty dirs handled later in tree building)
+            // If it's a directory, it passed the gitignore check, so keep it.
             if is_dir {
-                return true;
+                return Some(meta.path);
             }
             
             // Check file size limit
             if meta.size > options.max_file_size {
-                return false;
+                return None;
             }
 
-            // If text_only, check if it's a text file
-            if options.text_only && !is_likely_text_file(&meta.path) {
-                return false;
+            // If text_only, check if it's a text file based on extension/name
+            if options.text_only && !is_likely_text_file(relative_path) {
+                return None;
             }
             
-            true
+            // If all checks pass, keep the original full path to be read later.
+            Some(meta.path)
         })
-        .map(|meta| meta.path)
         .collect();
     
-    web_sys::console::log_1(&format!("[WASM] Kept {} paths after filtering", kept_paths.len()).into());
-
     let processing_time = js_sys::Date::now() - start_time;
     let result = FilterResult {
         paths: kept_paths,

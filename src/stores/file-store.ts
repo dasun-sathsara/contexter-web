@@ -130,6 +130,11 @@ export const useFileStore = create<FileState>()(
 
                     switch (type) {
                         case 'filter-complete': {
+                            // LOG 2: Show filtered paths received from worker
+                            if (payload && Array.isArray(payload.paths)) {
+                                console.log('✅ FILTERED PATHS FROM WORKER:', payload.paths);
+                            }
+
                             if (payload && Array.isArray(payload.paths) && payload.paths.length > 0) {
                                 _readAndProcessFiles(payload.paths);
                             } else {
@@ -203,10 +208,11 @@ export const useFileStore = create<FileState>()(
                     const gitignoreFile = filesWithPath.find((f) => f.webkitRelativePath.endsWith('.gitignore'));
                     const gitignoreContent = gitignoreFile ? await gitignoreFile.text() : '';
                     const rootPrefix = firstPath.substring(0, firstPath.indexOf('/') + 1);
-                    console.log('[Store] Root prefix:', rootPrefix);
 
                     const metadata: FileMetadata[] = filesWithPath.map((f) => ({ path: f.webkitRelativePath, size: f.size }));
-                    console.log('[Store] Metadata for', metadata.length, 'files, sending to worker');
+
+                    // LOG 1: Show all paths being sent to worker for filtering
+                    console.log('🔍 PATHS SENT TO WORKER:', metadata.map(m => m.path));
 
                     getWorker()?.postMessage({
                         type: 'filter-files',
