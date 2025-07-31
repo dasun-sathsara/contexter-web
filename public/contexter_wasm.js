@@ -98,10 +98,6 @@ function getStringFromWasm0(ptr, len) {
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
 }
 
-function isLikeNone(x) {
-    return x === undefined || x === null;
-}
-
 function debugString(val) {
     // primitive types
     const type = typeof val;
@@ -165,6 +161,22 @@ function debugString(val) {
     }
     // TODO we could test for more things here, like `Set`s and `Map`s.
     return className;
+}
+
+function isLikeNone(x) {
+    return x === undefined || x === null;
+}
+/**
+ * Logs a message to the browser's developer console.
+ * @param {string} level
+ * @param {string} message
+ */
+export function log_message(level, message) {
+    const ptr0 = passStringToWasm0(level, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(message, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    wasm.log_message(ptr0, len0, ptr1, len1);
 }
 
 function takeFromExternrefTable0(idx) {
@@ -277,9 +289,15 @@ function __wbg_get_imports() {
         const ret = arg0.call(arg1);
         return ret;
     }, arguments) };
+    imports.wbg.__wbg_debug_3cb59063b29f58c1 = function(arg0) {
+        console.debug(arg0);
+    };
     imports.wbg.__wbg_done_769e5ede4b31c67b = function(arg0) {
         const ret = arg0.done;
         return ret;
+    };
+    imports.wbg.__wbg_error_524f506f44df1645 = function(arg0) {
+        console.error(arg0);
     };
     imports.wbg.__wbg_error_7534b8e9a36f1ab4 = function(arg0, arg1) {
         let deferred0_0;
@@ -303,6 +321,9 @@ function __wbg_get_imports() {
     imports.wbg.__wbg_getwithrefkey_1dc361bd10053bfe = function(arg0, arg1) {
         const ret = arg0[arg1];
         return ret;
+    };
+    imports.wbg.__wbg_info_3daf2e093e091b66 = function(arg0) {
+        console.info(arg0);
     };
     imports.wbg.__wbg_instanceof_ArrayBuffer_e14585432e3737fc = function(arg0) {
         let result;
@@ -344,9 +365,8 @@ function __wbg_get_imports() {
         const ret = arg0.length;
         return ret;
     };
-    imports.wbg.__wbg_new0_f788a2397c7ca929 = function() {
-        const ret = new Date();
-        return ret;
+    imports.wbg.__wbg_log_c222819a41e063d3 = function(arg0) {
+        console.log(arg0);
     };
     imports.wbg.__wbg_new_405e22f390576ce2 = function() {
         const ret = new Object();
@@ -400,10 +420,6 @@ function __wbg_get_imports() {
         getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
         getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
     };
-    imports.wbg.__wbg_toISOString_b015155a5a6fe219 = function(arg0) {
-        const ret = arg0.toISOString();
-        return ret;
-    };
     imports.wbg.__wbg_value_cd1ffa7b1ab794f1 = function(arg0) {
         const ret = arg0.value;
         return ret;
@@ -422,12 +438,6 @@ function __wbg_get_imports() {
     imports.wbg.__wbindgen_bigint_from_u64 = function(arg0) {
         const ret = BigInt.asUintN(64, arg0);
         return ret;
-    };
-    imports.wbg.__wbindgen_bigint_get_as_i64 = function(arg0, arg1) {
-        const v = arg1;
-        const ret = typeof(v) === 'bigint' ? v : undefined;
-        getDataViewMemory0().setBigInt64(arg0 + 8 * 1, isLikeNone(ret) ? BigInt(0) : ret, true);
-        getDataViewMemory0().setInt32(arg0 + 4 * 0, !isLikeNone(ret), true);
     };
     imports.wbg.__wbindgen_boolean_get = function(arg0) {
         const v = arg0;
@@ -459,10 +469,6 @@ function __wbg_get_imports() {
         table.set(offset + 3, false);
         ;
     };
-    imports.wbg.__wbindgen_is_bigint = function(arg0) {
-        const ret = typeof(arg0) === 'bigint';
-        return ret;
-    };
     imports.wbg.__wbindgen_is_function = function(arg0) {
         const ret = typeof(arg0) === 'function';
         return ret;
@@ -478,10 +484,6 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbindgen_is_undefined = function(arg0) {
         const ret = arg0 === undefined;
-        return ret;
-    };
-    imports.wbg.__wbindgen_jsval_eq = function(arg0, arg1) {
-        const ret = arg0 === arg1;
         return ret;
     };
     imports.wbg.__wbindgen_jsval_loose_eq = function(arg0, arg1) {

@@ -8,7 +8,6 @@ import {
     FileCode,
     FileCog,
     FileJson,
-    Braces,
     Database,
     Globe,
     Palette,

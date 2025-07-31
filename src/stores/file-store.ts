@@ -1,927 +1,398 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import { subscribeWithSelector } from 'zustand/middleware';
 import { enableMapSet } from 'immer';
-import { FileNode, VimMode, FileInput, ProcessingResult } from '@/lib/types';
+import { FileNode, VimMode, FileInput, ProcessingResult, Settings } from '@/lib/types';
 import { toast } from 'sonner';
 
-// Enable Map and Set support in Immer
 enableMapSet();
+// Extend File to include webkitRelativePath provided by directory input
+type FileWithPath = File & { webkitRelativePath: string };
 
-// Enhanced gitignore matcher with performance optimizations
-const createGitignoreMatcher = (gitignoreContent: string) => {
-    const patterns = new Set<string>();
-    const regexPatterns: RegExp[] = [];
+// --- Worker Management ---
 
-    gitignoreContent.split(/\r?\n/).forEach((line) => {
-        const rule = line.trim();
-        if (!rule || rule.startsWith('#')) return;
-
-        // Handle simple directory ignores
-        if (rule.endsWith('/')) {
-            patterns.add(rule.replace(/\/+$/, ''));
-        } else if (rule.includes('*') || rule.includes('?')) {
-            // Convert glob patterns to regex (simplified)
-            const regexPattern = rule
-                .replace(/\./g, '\\.')
-                .replace(/\*/g, '.*')
-                .replace(/\?/g, '.');
-            try {
-                regexPatterns.push(new RegExp(`^${regexPattern}$`));
-            } catch {
-                // Ignore invalid patterns
-            }
-        } else {
-            patterns.add(rule);
-        }
-    });
-
-    // Always ignore common heavy directories
-    patterns.add('node_modules');
-    patterns.add('.git');
-    patterns.add('target');
-    patterns.add('dist');
-    patterns.add('build');
-    patterns.add('.next');
-    patterns.add('.nuxt');
-    patterns.add('coverage');
-
-    return (relativePath: string): boolean => {
-        const segments = relativePath.split('/');
-
-        // Check if any segment matches a simple pattern
-        for (const segment of segments) {
-            if (patterns.has(segment)) return true;
-        }
-
-        // Check regex patterns
-        for (const regex of regexPatterns) {
-            if (regex.test(relativePath)) return true;
-        }
-
-        return false;
-    };
+let worker: Worker | null = null;
+const getWorker = () => {
+    if (typeof window === 'undefined') return null;
+    if (!worker) {
+        worker = new Worker(new URL('../workers/file-processor.worker.ts', import.meta.url));
+    }
+    return worker;
 };
 
-// Utility functions for tree operations
-const flattenFileTree = (nodes: FileNode[]): Map<string, FileNode> => {
-    const map = new Map<string, FileNode>();
+// This state is kept at the module level, private to the store's implementation.
+// It bridges the gap between the `processFiles` call and the worker's async response.
+let pendingFiles: FileWithPath[] | null = null;
 
-    const traverse = (node: FileNode) => {
-        map.set(node.path, node);
-        if (node.is_dir && node.children) {
-            node.children.forEach(traverse);
-        }
-    };
+// --- Store Definition ---
 
-    nodes.forEach(traverse);
-    return map;
-};
-
-const createFileLookupMap = (files: File[]): Map<string, File> => {
-    const map = new Map<string, File>();
-
-    for (const file of files) {
-        const path = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
-        map.set(path, file);
-    }
-
-    return map;
-};
-
-// Enhanced worker management with error recovery
-class WorkerManager {
-    private worker: Worker | null = null;
-    private messageHandlers = new Map<string, (payload: unknown) => void>();
-    private isInitialized = false;
-
-    constructor() {
-        this.initializeWorker();
-    }
-
-    private initializeWorker() {
-        if (typeof window === 'undefined') return;
-
-        try {
-            this.worker = new Worker(
-                new URL('../workers/file-processor.worker.ts', import.meta.url)
-            );
-
-            this.worker.onmessage = (event: MessageEvent) => {
-                try {
-                    const { type, payload } = event.data;
-                    const handler = this.messageHandlers.get(type);
-
-                    if (handler) {
-                        handler(payload);
-                    } else {
-                        console.warn(`Unhandled worker message type: ${type}`);
-                    }
-                } catch (error) {
-                    console.error('Error handling worker message:', error);
-                    toast.error('Error processing worker response');
-                }
-            };
-
-            this.worker.onerror = (error) => {
-                console.error('Worker error:', error);
-                toast.error('Worker error occurred', {
-                    description: 'File processing may be degraded'
-                });
-                this.reinitializeWorker();
-            };
-
-            this.isInitialized = true;
-        } catch (error) {
-            console.error('Failed to initialize worker:', error);
-            toast.error('Failed to initialize file processor');
-        }
-    }
-
-    private reinitializeWorker() {
-        this.cleanup();
-        setTimeout(() => this.initializeWorker(), 1000);
-    }
-
-    postMessage(type: string, payload: unknown) {
-        if (!this.worker || !this.isInitialized) {
-            console.error('Worker not available');
-            toast.error('File processor not available');
-            return;
-        }
-
-        try {
-            this.worker.postMessage({ type, payload, requestId: `${Date.now()}-${Math.random()}` });
-        } catch (error) {
-            console.error('Failed to post message to worker:', error);
-            toast.error('Failed to communicate with file processor');
-        }
-    }
-
-    onMessage(type: string, handler: (payload: unknown) => void) {
-        this.messageHandlers.set(type, handler);
-    }
-
-    cleanup() {
-        if (this.worker) {
-            this.worker.terminate();
-            this.worker = null;
-        }
-        this.messageHandlers.clear();
-        this.isInitialized = false;
-    }
-}
-
-// Global worker instance
-let workerManager: WorkerManager | null = null;
-
-// Settings interface with validation
-interface Settings {
-    hideEmptyFolders: boolean;
-    showTokenCount: boolean;
-    maxFileSize: number;
-    autoSave: boolean;
-}
-
-interface ProcessingStats {
-    totalFiles: number;
-    totalTokens: number;
-    totalSize: number;
-    processingTime: number;
-    lastProcessed: Date;
-}
-
-// Main store interface with enhanced typing
 interface FileState {
-    // Core data
+    // Core Data
     fileTree: FileNode[];
     fileMap: Map<string, FileNode>;
-    rootFiles: FileInput[];
+    rootFiles: Map<string, string>; // path -> content
 
-    // Processing state
+    // UI & Processing State
     isLoading: boolean;
-    processingStats: ProcessingStats | null;
-    _fileLookupMap: Map<string, File> | null;
+    statusMessage: string;
+    settings: Settings;
 
-    // Navigation state
+    // Navigation
     currentFolderPath: string | null;
-    navigationStack: (string | null)[];
+    navigationStack: string[];
 
-    // Vim state
+    // Selection & Vim
     vimMode: VimMode;
     selectedPaths: Set<string>;
     cursorPath: string | null;
     visualAnchorPath: string | null;
 
-    // UI state
-    statusMessage: string;
-    settings: Settings;
-
     // Actions
-    processFiles: (files: File[]) => Promise<void>;
+    processFiles: (files: FileWithPath[]) => Promise<void>;
     reprocessFiles: () => Promise<void>;
     setSettings: (newSettings: Partial<Settings>) => void;
     clearAll: () => void;
-
-    // Navigation actions
     navigateInto: (path: string) => void;
     navigateBack: () => void;
-    navigateToRoot: () => void;
-
-    // Selection actions
     setCursor: (path: string | null) => void;
     toggleSelection: (path: string) => void;
     setSelection: (paths: Set<string>) => void;
-    clearSelection: () => void;
-    selectAll: () => void;
-
-    // Vim actions
     setVimMode: (mode: VimMode) => void;
     setVisualAnchor: (path: string | null) => void;
-
-    // File actions
-    yankToClipboard: (pathsToYank?: Set<string>) => Promise<void>;
+    yankToClipboard: (pathsToYank?: Set<string>) => void;
     deleteSelected: (pathsToDelete?: Set<string>) => void;
-
-    // Utility actions
-    getFileContent: (path: string) => string | null;
-    getNodeAtPath: (path: string) => FileNode | undefined;
-    exportToJSON: () => string;
-    importFromJSON: (json: string) => boolean;
 }
 
-// Default settings with validation
 const defaultSettings: Settings = {
     hideEmptyFolders: true,
     showTokenCount: true,
-    maxFileSize: 2 * 1024 * 1024, // 2MB
-    autoSave: true,
-};
-
-const validateSettings = (settings: Partial<Settings>): Settings => {
-    return {
-        hideEmptyFolders: settings.hideEmptyFolders ?? defaultSettings.hideEmptyFolders,
-        showTokenCount: settings.showTokenCount ?? defaultSettings.showTokenCount,
-        maxFileSize: Math.max(1024, Math.min(10 * 1024 * 1024, settings.maxFileSize ?? defaultSettings.maxFileSize)),
-        autoSave: settings.autoSave ?? defaultSettings.autoSave,
-    };
 };
 
 export const useFileStore = create<FileState>()(
-    subscribeWithSelector(
-        persist(
-            immer((set, get) => {
-                // Initialize worker manager
-                if (typeof window !== 'undefined' && !workerManager) {
-                    workerManager = new WorkerManager();
-
-                    // Set up message handlers
-                    workerManager.onMessage('filter-complete', async (payload: unknown) => {
-                        const { _fileLookupMap } = get();
-
-                        if (!_fileLookupMap) {
-                            set((state) => {
-                                state.isLoading = false;
-                                state.statusMessage = 'Error: File lookup failed';
-                            });
-                            return;
-                        }
-
-                        // Handle both array and object responses from worker
-                        let keptPaths: string[] = [];
-                        if (Array.isArray(payload)) {
-                            keptPaths = payload;
-                        } else if (payload && typeof payload === 'object' && payload !== null && Array.isArray((payload as Record<string, unknown>).paths)) {
-                            keptPaths = (payload as Record<string, unknown>).paths as string[];
-                        } else if (payload && typeof payload === 'object' && payload !== null) {
-                            // Fallback for other object structures
-                            keptPaths = Object.values(payload as Record<string, unknown>).filter((item): item is string => typeof item === 'string');
-                        }
-
-                        console.log('Received keptPaths from worker:', keptPaths);
-
-                        if (!Array.isArray(keptPaths) || keptPaths.length === 0) {
-                            console.error('Invalid keptPaths received:', payload);
-                            set((state) => {
-                                state.isLoading = false;
-                                state.statusMessage = 'No relevant files found. Check .gitignore or folder contents.';
-                            });
-                            toast.error('No relevant files found', {
-                                description: 'All files were excluded by filters.'
-                            });
-                            return;
-                        }
-
-                        set((state) => {
-                            state.statusMessage = `Reading ${keptPaths.length} files...`;
-                        });
-
-                        toast.info(`Reading ${keptPaths.length} files...`);
-
-                        const filesToRead: File[] = keptPaths
-                            .map(path => _fileLookupMap.get(path))
-                            .filter((file): file is File => file !== undefined);
-
-                        if (filesToRead.length === 0) {
-                            console.error('No files found in lookup map for paths:', keptPaths);
-                            set((state) => {
-                                state.isLoading = false;
-                                state.statusMessage = 'Error: Files not found in lookup map';
-                            });
-                            toast.error('Failed to locate files');
-                            return;
-                        }
-
-                        set((state) => {
-                            state._fileLookupMap = null;
-                        });
-
-                        try {
-                            console.log('Reading files:', filesToRead.length);
-
-                            if (!Array.isArray(filesToRead)) {
-                                throw new Error('filesToRead is not an array');
-                            }
-
-                            const filePromises = filesToRead.map(file =>
-                                new Promise<FileInput | null>((resolve) => {
-                                    if (!file || typeof file.name !== 'string') {
-                                        console.error('Invalid file object:', file);
-                                        resolve(null);
-                                        return;
-                                    }
-
-                                    const reader = new FileReader();
-                                    reader.onload = () => resolve({
-                                        path: (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
-                                        content: reader.result as string
-                                    });
-                                    reader.onerror = () => {
-                                        console.error(`Failed to read file: ${file.name}`);
-                                        resolve(null);
-                                    };
-                                    reader.readAsText(file);
-                                })
-                            );
-
-                            const fileInputs = (await Promise.all(filePromises))
-                                .filter((file): file is FileInput => file !== null);
-
-                            if (fileInputs.length === 0) {
-                                throw new Error('No files could be read');
-                            }
-
-                            console.log('Successfully read files:', fileInputs.length);
-
-                            set((state) => {
-                                state.rootFiles = fileInputs;
-                                state.statusMessage = 'Building file tree...';
-                            });
-
-                            workerManager?.postMessage('process-files', {
-                                files: fileInputs,
-                                settings: { ...get().settings, textOnly: true }
-                            });
-                        } catch (error) {
-                            console.error('Error reading files:', error);
-                            set((state) => {
-                                state.isLoading = false;
-                                state.statusMessage = 'Error reading files';
-                            });
-                            toast.error('Failed to read files');
-                        }
-                    });
-
-                    workerManager.onMessage('processing-complete', (payload: unknown) => {
-                        const result = payload as ProcessingResult;
-                        const fileMap = flattenFileTree(result.file_tree);
-                        const { settings, currentFolderPath, cursorPath, isLoading } = get();
-
-                        // Check if this is a reprocessing after deletion by checking the status message
-                        const isAfterDeletion = get().statusMessage.includes('Removed') && get().statusMessage.includes('Re-processing');
-
-                        const stats: ProcessingStats = {
-                            totalFiles: result.total_files,
-                            totalTokens: result.total_tokens,
-                            totalSize: result.total_size ?? 0,
-                            processingTime: result.processing_time_ms ?? 0,
-                            lastProcessed: new Date(),
-                        };
-
-                        const tokenPart = settings.showTokenCount
-                            ? ` (${result.total_tokens.toLocaleString()} tokens)`
-                            : '';
-
-                        // Determine if we should preserve navigation state or reset
-                        const shouldPreserveNavigation = currentFolderPath !== null;
-
-                        // If preserving navigation, validate that the current folder still exists
-                        const folderStillExists = shouldPreserveNavigation && fileMap.has(currentFolderPath!);
-
-                        // Validate cursor path still exists in the current view
-                        let validatedCursorPath = cursorPath;
-                        if (shouldPreserveNavigation && folderStillExists) {
-                            const currentFolder = fileMap.get(currentFolderPath!);
-                            const currentView = currentFolder?.children || [];
-                            const cursorExists = cursorPath && (
-                                cursorPath === '..' ||
-                                currentView.some(item => item.path === cursorPath)
-                            );
-
-                            if (!cursorExists) {
-                                // Set cursor to first item in current view or '..' if in subfolder
-                                validatedCursorPath = currentView.length > 0 ? currentView[0].path : '..';
-                            }
-                        } else if (!shouldPreserveNavigation) {
-                            // Reset to root - set cursor to first item if available
-                            validatedCursorPath = result.file_tree[0]?.path || null;
-                        }
-
-                        set((state) => {
-                            state.fileTree = result.file_tree;
-                            state.fileMap = fileMap;
-                            state.isLoading = false;
-                            state.processingStats = stats;
-
-                            // Update status message based on context
-                            if (isAfterDeletion) {
-                                state.statusMessage = `Removed items. ${result.total_files} files remaining${tokenPart}`;
-                            } else {
-                                state.statusMessage = `Processed ${result.total_files} files${tokenPart}`;
-                            }
-
-                            // Preserve or reset navigation state based on context
-                            if (shouldPreserveNavigation && folderStillExists) {
-                                // Keep current navigation state
-                                state.cursorPath = validatedCursorPath;
-                            } else {
-                                // Reset navigation state
-                                state.currentFolderPath = null;
-                                state.navigationStack = [];
-                                state.cursorPath = validatedCursorPath;
-                            }
-                        });
-
-                        // Show different toast messages based on context
-                        if (isAfterDeletion) {
-                            // Don't show success toast for deletion reprocessing
-                            console.log(`Reprocessed after deletion: ${result.total_files} files remaining`);
-                        } else {
-                            toast.success('Files processed successfully!', {
-                                description: `${result.total_files} files processed in ${result.processing_time_ms ?? 0}ms`
-                            });
-                        }
-                    });
-
-                    workerManager.onMessage('processing-error', (payload: unknown) => {
-                        const error = payload as string;
-                        set((state) => {
-                            state.isLoading = false;
-                            state.statusMessage = `Error: ${error}`;
-                        });
-                        toast.error('File processing failed', { description: error });
-                    });
-
-                    workerManager.onMessage('markdown-result', async (payload: unknown) => {
-                        const markdown = payload as string;
-                        try {
-                            await navigator.clipboard.writeText(markdown);
-                            set((state) => {
-                                state.statusMessage = 'Copied to clipboard!';
-                            });
-                            toast.success('Copied to clipboard!');
-                        } catch (error) {
-                            console.error('Failed to copy to clipboard:', error);
-                            toast.error('Failed to copy to clipboard');
-                        }
-                    });
+    persist(
+        immer((set, get) => {
+            // This is an internal helper function, not part of the public store API.
+            const _readAndProcessFiles = async (pathsToRead: string[]) => {
+                if (!pendingFiles) {
+                    toast.error("An internal error occurred: pending files not found.");
+                    set({ isLoading: false, statusMessage: 'Error: Could not find files to read.' });
+                    return;
                 }
 
-                return {
-                    // Initial state
-                    fileTree: [],
-                    fileMap: new Map(),
-                    rootFiles: [],
-                    isLoading: false,
-                    processingStats: null,
-                    _fileLookupMap: null,
+                set({ statusMessage: `Reading ${pathsToRead.length} files...` });
 
-                    currentFolderPath: null,
-                    navigationStack: [],
+                const fileMap = new Map(pendingFiles.map((f: FileWithPath) => [f.webkitRelativePath, f]));
+                const fileInputs: FileInput[] = [];
+                const rootFileContents = new Map<string, string>();
 
-                    vimMode: 'normal',
-                    selectedPaths: new Set(),
-                    cursorPath: null,
-                    visualAnchorPath: null,
-
-                    statusMessage: 'Ready. Drag and drop files or folders.',
-                    settings: defaultSettings,
-
-                    // File processing
-                    processFiles: async (files: File[]) => {
-                        if (files.length === 0) return;
-
-                        set((state) => {
-                            state.isLoading = true;
-                            state.statusMessage = 'Building file index...';
-                            state.fileTree = [];
-                            state.fileMap = new Map();
-                            state.selectedPaths = new Set();
-                            state.currentFolderPath = null;
-                            state.navigationStack = [];
-                            state.cursorPath = null;
-                        });
-
+                const readPromises = pathsToRead.map(async (path) => {
+                    const file = fileMap.get(path);
+                    if (file) {
                         try {
-                            const firstPath = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || files[0].name;
-                            const slashIndex = firstPath.indexOf('/');
-                            const rootPrefix = slashIndex > -1 ? firstPath.substring(0, slashIndex + 1) : '';
-
-                            // Find and read .gitignore
-                            let gitignoreContent = '';
-                            const gitignoreFile = files.find(f => {
-                                const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
-                                return rel === `${rootPrefix}.gitignore` || rel === '.gitignore';
-                            });
-
-                            if (gitignoreFile) {
-                                gitignoreContent = await gitignoreFile.text();
-                            }
-
-                            // Pre-filter with lightweight directory matching
-                            const shouldIgnore = createGitignoreMatcher(gitignoreContent);
-                            const preFilteredFiles: File[] = [];
-                            const metadata: { path: string; size: number }[] = [];
-
-                            for (const file of files) {
-                                const path = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
-                                const relative = rootPrefix && path.startsWith(rootPrefix)
-                                    ? path.slice(rootPrefix.length)
-                                    : path;
-
-                                if (shouldIgnore(relative)) continue;
-
-                                preFilteredFiles.push(file);
-                                metadata.push({ path, size: file.size });
-                            }
-
-                            toast.info(`Indexing ${preFilteredFiles.length} files (after .gitignore)...`);
-
-                            const fileLookupMap = createFileLookupMap(preFilteredFiles);
-
-                            set((state) => {
-                                state._fileLookupMap = fileLookupMap;
-                                state.statusMessage = 'Filtering files...';
-                            });
-
-                            workerManager?.postMessage('filter-files', {
-                                metadata,
-                                gitignoreContent,
-                                rootPrefix,
-                                settings: { ...get().settings, textOnly: true }
-                            });
-                        } catch (error) {
-                            console.error('Error processing files:', error);
-                            set((state) => {
-                                state.isLoading = false;
-                                state.statusMessage = 'Error processing files';
-                            });
-                            toast.error('Failed to process files');
-                        }
-                    },
-
-                    reprocessFiles: async () => {
-                        const { rootFiles, settings } = get();
-                        if (rootFiles.length === 0) {
-                            toast.warning('No files to reprocess');
-                            return;
-                        }
-
-                        set((state) => {
-                            state.isLoading = true;
-                            state.statusMessage = 'Re-processing files...';
-                        });
-
-                        workerManager?.postMessage('process-files', { files: rootFiles, settings: { ...settings, textOnly: true } });
-                    },
-
-                    setSettings: (newSettings) => {
-                        set((state) => {
-                            state.settings = validateSettings({ ...state.settings, ...newSettings });
-                        });
-
-                        if (get().rootFiles.length > 0) {
-                            get().reprocessFiles();
-                        }
-                    },
-
-                    clearAll: () => {
-                        set((state) => {
-                            state.fileTree = [];
-                            state.fileMap = new Map();
-                            state.rootFiles = [];
-                            state._fileLookupMap = null;
-                            state.isLoading = false;
-                            state.processingStats = null;
-                            state.currentFolderPath = null;
-                            state.navigationStack = [];
-                            state.vimMode = 'normal';
-                            state.selectedPaths = new Set();
-                            state.cursorPath = null;
-                            state.visualAnchorPath = null;
-                            state.statusMessage = 'Cleared. Ready for new files.';
-                        });
-                        toast.info('All files cleared');
-                    },
-
-                    // Navigation
-                    navigateInto: (path) => {
-                        const { fileMap, currentFolderPath, navigationStack } = get();
-                        const node = fileMap.get(path);
-
-                        if (node?.is_dir) {
-                            set((state) => {
-                                state.navigationStack = [...navigationStack, currentFolderPath];
-                                state.currentFolderPath = path;
-                                state.cursorPath = '..';
-                            });
-                        }
-                    },
-
-                    navigateBack: () => {
-                        const { navigationStack } = get();
-                        if (navigationStack.length > 0) {
-                            set((state) => {
-                                const newStack = [...navigationStack];
-                                const newPath = newStack.pop()!;
-                                const previousPath = state.currentFolderPath;
-                                state.navigationStack = newStack;
-                                state.currentFolderPath = newPath;
-                                state.cursorPath = previousPath;
-                            });
-                        }
-                    },
-
-                    navigateToRoot: () => {
-                        set((state) => {
-                            state.currentFolderPath = null;
-                            state.navigationStack = [];
-                            state.cursorPath = state.fileTree[0]?.path || null;
-                        });
-                    },
-
-                    // Selection
-                    setCursor: (path) => {
-                        set((state) => {
-                            state.cursorPath = path;
-                        });
-                    },
-
-                    toggleSelection: (path) => {
-                        set((state) => {
-                            const newSelected = new Set(state.selectedPaths);
-                            if (newSelected.has(path)) {
-                                newSelected.delete(path);
+                            const content = await file.text();
+                            // Basic check to ensure we're not reading a binary file that slipped through
+                            if (!content.includes('\uFFFD')) {
+                                fileInputs.push({ path, content });
+                                rootFileContents.set(path, content);
                             } else {
-                                newSelected.add(path);
+                                console.warn(`Skipping file with invalid characters (likely binary): ${path}`);
                             }
-                            state.selectedPaths = newSelected;
-                        });
-                    },
-
-                    setSelection: (paths) => {
-                        set((state) => {
-                            state.selectedPaths = new Set(paths);
-                        });
-                    },
-
-                    clearSelection: () => {
-                        set((state) => {
-                            state.selectedPaths = new Set();
-                        });
-                    },
-
-                    selectAll: () => {
-                        const { fileMap } = get();
-                        const allPaths = new Set(Array.from(fileMap.keys()).filter(path => path !== '..'));
-
-                        set((state) => {
-                            state.selectedPaths = allPaths;
-                        });
-                    },
-
-                    // Vim
-                    setVimMode: (mode) => {
-                        set((state) => {
-                            state.vimMode = mode;
-                            if (mode === 'normal') {
-                                state.visualAnchorPath = null;
-                            }
-                        });
-                    },
-
-                    setVisualAnchor: (path) => {
-                        set((state) => {
-                            state.visualAnchorPath = path;
-                        });
-                    },
-
-                    // File actions
-                    yankToClipboard: async (pathsToYank) => {
-                        const { selectedPaths, fileMap, rootFiles } = get();
-                        const paths = pathsToYank || selectedPaths;
-
-                        if (paths.size === 0) {
-                            toast.warning('Nothing selected to copy');
-                            return;
+                        } catch {
+                            console.warn(`Could not read file: ${path}`);
                         }
-
-                        // Collect all files recursively
-                        const selectedFilePaths = new Set<string>();
-
-                        const collectFiles = (node: FileNode) => {
-                            if (!node.is_dir) {
-                                selectedFilePaths.add(node.path);
-                            } else if (node.children) {
-                                node.children.forEach(collectFiles);
-                            }
-                        };
-
-                        paths.forEach((path) => {
-                            if (path === '..') return;
-                            const node = fileMap.get(path);
-                            if (node) {
-                                collectFiles(node);
-                            }
-                        });
-
-                        const filesToMerge = rootFiles.filter(file => selectedFilePaths.has(file.path));
-
-                        if (filesToMerge.length === 0) {
-                            toast.warning('Selection contains no files to copy');
-                            return;
-                        }
-
-                        toast.info(`Copying ${filesToMerge.length} files to clipboard...`);
-
-                        // Use WASM for high-performance markdown generation
-                        workerManager?.postMessage('merge-files', {
-                            files: filesToMerge,
-                            options: {
-                                includeHeader: false,
-                                includeToc: false,
-                                includePathHeaders: true,
-                                includeStats: false,
-                            }
-                        });
-                    },
-
-                    deleteSelected: (pathsToDelete) => {
-                        const { selectedPaths, fileMap, rootFiles, settings, currentFolderPath, cursorPath } = get();
-                        const paths = pathsToDelete || selectedPaths;
-
-                        if (paths.size === 0) {
-                            toast.warning('Nothing selected to delete');
-                            return;
-                        }
-
-                        const filesToDelete = new Set<string>();
-
-                        const collectFiles = (node: FileNode) => {
-                            if (!node.is_dir) {
-                                filesToDelete.add(node.path);
-                            } else {
-                                node.children?.forEach(collectFiles);
-                            }
-                        };
-
-                        paths.forEach((path) => {
-                            if (path === '..') return;
-                            const node = fileMap.get(path);
-                            if (node) {
-                                collectFiles(node);
-                            }
-                        });
-
-                        if (filesToDelete.size === 0) {
-                            toast.warning('Selection contains no files to delete');
-                            return;
-                        }
-
-                        const newRootFiles = rootFiles.filter(file => !filesToDelete.has(file.path));
-
-                        // Get current view to determine next cursor position
-                        const currentView: FileNode[] = currentFolderPath
-                            ? fileMap.get(currentFolderPath)?.children || []
-                            : get().fileTree;
-
-                        // Find the next item to select after deletion
-                        let nextCursorPath: string | null = null;
-                        if (currentView.length > 0) {
-                            // Find the current cursor index
-                            const currentIndex = cursorPath ? currentView.findIndex(item => item.path === cursorPath) : -1;
-
-                            // Filter out deleted items from current view
-                            const remainingItems = currentView.filter(item => !paths.has(item.path));
-
-                            if (remainingItems.length > 0) {
-                                // Try to select the item at the same index, or the previous one if at the end
-                                const targetIndex = Math.min(currentIndex, remainingItems.length - 1);
-                                nextCursorPath = remainingItems[Math.max(0, targetIndex)]?.path || null;
-                            }
-                        }
-
-                        set((state) => {
-                            state.statusMessage = `Removed ${filesToDelete.size} items. Re-processing...`;
-                            state.isLoading = true;
-                            state.rootFiles = newRootFiles;
-                            state.selectedPaths = new Set();
-                            state.vimMode = 'normal';
-                            state.visualAnchorPath = null;
-                            // Preserve navigation state
-                            // Don't reset currentFolderPath and navigationStack
-                            // Set the next cursor position after deletion
-                            state.cursorPath = nextCursorPath;
-                        });
-
-                        workerManager?.postMessage('process-files', { files: newRootFiles, settings: { ...settings, textOnly: true } });
-                    },
-
-                    // Utilities
-                    getFileContent: (path) => {
-                        const { rootFiles } = get();
-                        const file = rootFiles.find(f => f.path === path);
-                        return file?.content || null;
-                    },
-
-                    getNodeAtPath: (path) => {
-                        const { fileMap } = get();
-                        return fileMap.get(path);
-                    },
-
-                    exportToJSON: () => {
-                        const { rootFiles, settings, processingStats } = get();
-                        const exportData = {
-                            files: rootFiles,
-                            settings,
-                            stats: processingStats,
-                            exportedAt: new Date().toISOString(),
-                            version: '2.0.0',
-                        };
-                        return JSON.stringify(exportData, null, 2);
-                    },
-
-                    importFromJSON: (json) => {
-                        try {
-                            const data = JSON.parse(json);
-
-                            if (!data.files || !Array.isArray(data.files)) {
-                                throw new Error('Invalid file data');
-                            }
-
-                            set((state) => {
-                                state.rootFiles = data.files;
-                                state.settings = validateSettings(data.settings || {});
-                                state.processingStats = data.stats || null;
-                            });
-
-                            get().reprocessFiles();
-                            toast.success('Files imported successfully');
-                            return true;
-                        } catch (error) {
-                            console.error('Import failed:', error);
-                            toast.error('Failed to import files');
-                            return false;
-                        }
-                    },
-                };
-            }),
-            {
-                name: 'contexter-file-store',
-                storage: createJSONStorage(() => localStorage),
-                partialize: (state) => ({
-                    settings: state.settings,
-                }),
-                version: 2,
-                migrate: (persistedState: unknown, version: number) => {
-                    const state = persistedState as Record<string, unknown>;
-                    if (version < 2) {
-                        // Migrate from v1 to v2
-                        return {
-                            settings: validateSettings((state?.settings as Partial<Settings>) || {}),
-                        };
                     }
-                    return persistedState;
-                },
+                });
+
+                await Promise.all(readPromises);
+                set({ rootFiles: rootFileContents, statusMessage: `Processing ${fileInputs.length} files...` });
+
+                // Clean up the temporary state
+                pendingFiles = null;
+
+                getWorker()?.postMessage({
+                    type: 'process-files',
+                    payload: { files: fileInputs, settings: get().settings }
+                });
+            };
+
+            // Setup worker listeners once
+            const workerInstance = getWorker();
+            if (workerInstance) {
+                workerInstance.onmessage = (event: MessageEvent) => {
+                    const { type, payload } = event.data;
+
+                    switch (type) {
+                        case 'filter-complete': {
+                            const { paths } = payload;
+                            // Call the internal helper function
+                            _readAndProcessFiles(paths);
+                            break;
+                        }
+                        case 'processing-complete': {
+                            const result = payload as ProcessingResult;
+                            const fileMap = new Map<string, FileNode>();
+                            const traverse = (nodes: FileNode[]) => {
+                                for (const node of nodes) {
+                                    fileMap.set(node.path, node);
+                                    if (node.children.length > 0) traverse(node.children);
+                                }
+                            };
+                            traverse(result.file_tree);
+
+                            set(state => {
+                                state.fileTree = result.file_tree;
+                                state.fileMap = fileMap;
+                                state.isLoading = false;
+                                // THIS LINE IS FIXED
+                                state.statusMessage = `Processed ${result.total_files} files (${((result.total_size ?? 0) / 1024).toFixed(1)} KB)`;
+                                state.cursorPath = result.file_tree[0]?.path ?? null;
+                            });
+                            toast.success("Project processed successfully!", {
+                                description: `${result.total_files} files loaded in ${result.processing_time_ms.toFixed(0)}ms.`
+                            });
+                            break;
+                        }
+                        case 'markdown-result': {
+                            navigator.clipboard.writeText(payload)
+                                .then(() => toast.success("Copied to clipboard!"))
+                                .catch(() => toast.error("Failed to copy to clipboard."));
+                            break;
+                        }
+                        case 'processing-error': {
+                            set({ isLoading: false, statusMessage: `Error: ${payload}` });
+                            toast.error("An error occurred during processing.", { description: payload });
+                            break;
+                        }
+                    }
+                };
             }
-        )
+
+            return {
+                // Initial State
+                fileTree: [],
+                fileMap: new Map(),
+                rootFiles: new Map(),
+                isLoading: false,
+                statusMessage: 'Ready. Drop a folder to get started.',
+                settings: defaultSettings,
+                currentFolderPath: null,
+                navigationStack: [],
+                vimMode: 'normal',
+                selectedPaths: new Set(),
+                cursorPath: null,
+                visualAnchorPath: null,
+
+                // --- Actions ---
+
+                processFiles: async (files: FileWithPath[]) => {
+                    if (files.length === 0) return;
+
+                    set({ isLoading: true, statusMessage: 'Analyzing project structure...' });
+
+                    const gitignoreFile = files.find((f) => f.webkitRelativePath.endsWith('.gitignore'));
+                    const gitignoreContent = gitignoreFile ? await gitignoreFile.text() : '';
+                    const firstPath = files[0]?.webkitRelativePath || '';
+                    const rootPrefix = firstPath.substring(0, firstPath.indexOf('/') + 1);
+
+                    const metadata = files.map((f) => ({
+                        path: f.webkitRelativePath,
+                        size: f.size
+                    }));
+
+                    // Use the private module-level variable to store files temporarily
+                    pendingFiles = files;
+
+                    getWorker()?.postMessage({
+                        type: 'filter-files',
+                        payload: { metadata, gitignoreContent, rootPrefix, settings: get().settings }
+                    });
+                },
+
+                reprocessFiles: async () => {
+                    const { rootFiles, settings } = get();
+                    if (rootFiles.size === 0) return;
+                    set({ isLoading: true, statusMessage: 'Re-processing files...' });
+
+                    const fileInputs = Array.from(rootFiles.entries()).map(([path, content]) => ({ path, content }));
+
+                    getWorker()?.postMessage({
+                        type: 'process-files',
+                        payload: { files: fileInputs, settings }
+                    });
+                },
+
+                setSettings: (newSettings) => {
+                    const oldSettings = get().settings;
+                    set(state => {
+                        state.settings = { ...state.settings, ...newSettings };
+                    });
+
+                    if (get().fileTree.length > 0 && JSON.stringify(oldSettings) !== JSON.stringify(get().settings)) {
+                        get().reprocessFiles();
+                    }
+                },
+
+                clearAll: () => {
+                    set({
+                        fileTree: [],
+                        fileMap: new Map(),
+                        rootFiles: new Map(),
+                        isLoading: false,
+                        statusMessage: 'Ready. Drop a folder to get started.',
+                        currentFolderPath: null,
+                        navigationStack: [],
+                        selectedPaths: new Set(),
+                        cursorPath: null,
+                    });
+                    toast.info("Project cleared.");
+                },
+
+                navigateInto: (path) => {
+                    const node = get().fileMap.get(path);
+                    if (node?.is_dir) {
+                        set(state => {
+                            state.navigationStack.push(state.currentFolderPath || 'root');
+                            state.currentFolderPath = path;
+                            state.cursorPath = '..';
+                        });
+                    }
+                },
+
+                navigateBack: () => {
+                    const { navigationStack } = get();
+                    if (navigationStack.length > 0) {
+                        set(state => {
+                            const previousPath = state.currentFolderPath;
+                            const newCurrent = state.navigationStack.pop()!;
+                            state.currentFolderPath = newCurrent === 'root' ? null : newCurrent;
+                            state.cursorPath = previousPath;
+                        });
+                    }
+                },
+
+                setCursor: (path) => set({ cursorPath: path }),
+                toggleSelection: (path) => {
+                    set(state => {
+                        if (state.selectedPaths.has(path)) {
+                            state.selectedPaths.delete(path);
+                        } else {
+                            state.selectedPaths.add(path);
+                        }
+                    });
+                },
+                setSelection: (paths) => set({ selectedPaths: new Set(paths) }),
+                setVimMode: (mode) => set({ vimMode: mode, visualAnchorPath: mode === 'normal' ? null : get().cursorPath }),
+                setVisualAnchor: (path) => set({ visualAnchorPath: path }),
+
+                yankToClipboard: (pathsToYank) => {
+                    const { selectedPaths, fileMap, rootFiles } = get();
+                    const paths = pathsToYank || selectedPaths;
+                    if (paths.size === 0) return;
+
+                    const filesToMerge: FileInput[] = [];
+                    const collectFiles = (path: string) => {
+                        const node = fileMap.get(path);
+                        if (!node) return;
+                        if (!node.is_dir) {
+                            const content = rootFiles.get(path);
+                            if (content) filesToMerge.push({ path, content });
+                        } else {
+                            node.children.forEach(child => collectFiles(child.path));
+                        }
+                    };
+                    paths.forEach(collectFiles);
+
+                    if (filesToMerge.length === 0) {
+                        toast.warning("No files to copy.");
+                        return;
+                    }
+                    toast.info(`Copying ${filesToMerge.length} files...`);
+                    getWorker()?.postMessage({
+                        type: 'merge-files',
+                        payload: { files: filesToMerge, options: {} }
+                    });
+                },
+
+                deleteSelected: (pathsToDelete) => {
+                    const paths = pathsToDelete || get().selectedPaths;
+                    if (paths.size === 0) return;
+
+                    set(state => {
+                        const allPathsToDelete = new Set<string>();
+                        const parentsToUpdate = new Map<string, { tokenDelta: number, sizeDelta: number }>();
+
+                        const collectPaths = (path: string) => {
+                            if (allPathsToDelete.has(path)) return;
+                            const node = state.fileMap.get(path);
+                            if (!node) return;
+
+                            allPathsToDelete.add(path);
+                            if (node.is_dir) {
+                                node.children.forEach(child => collectPaths(child.path));
+                            }
+                        };
+                        paths.forEach(p => collectPaths(p));
+
+                        // Determine cursor's next position before mutation
+                        const currentView = state.currentFolderPath
+                            ? state.fileMap.get(state.currentFolderPath)?.children ?? []
+                            : state.fileTree;
+                        const cursorIdx = currentView.findIndex(item => item.path === state.cursorPath);
+                        const remainingView = currentView.filter(item => !allPathsToDelete.has(item.path));
+                        let nextCursorPath: string | null = null;
+                        if (remainingView.length > 0) {
+                            nextCursorPath = remainingView[Math.min(cursorIdx, remainingView.length - 1)].path;
+                        } else if (state.currentFolderPath) {
+                            nextCursorPath = '..';
+                        }
+                        state.cursorPath = nextCursorPath;
+
+                        // Delete nodes and prepare parent updates
+                        allPathsToDelete.forEach(path => {
+                            const node = state.fileMap.get(path);
+                            if (!node) return;
+
+                            const parentPath = node.path.substring(0, node.path.lastIndexOf('/'));
+                            if (state.fileMap.has(parentPath)) {
+                                const update = parentsToUpdate.get(parentPath) || { tokenDelta: 0, sizeDelta: 0 };
+                                update.tokenDelta -= node.token_count || 0;
+                                update.sizeDelta -= node.size || 0;
+                                parentsToUpdate.set(parentPath, update);
+                            }
+
+                            state.fileMap.delete(path);
+                            if (!node.is_dir) state.rootFiles.delete(path);
+                        });
+
+                        // Update tree structure and parent stats
+                        const updateParents = (node: FileNode) => {
+                            node.children = node.children.filter(child => !allPathsToDelete.has(child.path));
+                            if (parentsToUpdate.has(node.path)) {
+                                const delta = parentsToUpdate.get(node.path)!;
+                                if (node.token_count) node.token_count += delta.tokenDelta;
+                                if (node.size) node.size += delta.sizeDelta;
+                            }
+                            node.children.forEach(updateParents);
+                        };
+                        state.fileTree.forEach(updateParents);
+                        state.fileTree = state.fileTree.filter(node => !allPathsToDelete.has(node.path));
+
+                        state.selectedPaths.clear();
+                        state.vimMode = 'normal';
+                        state.statusMessage = `Deleted ${allPathsToDelete.size} items.`;
+                        toast.success(`Deleted ${allPathsToDelete.size} items.`);
+                    });
+                },
+            };
+        }),
+        {
+            name: 'contexter-file-store',
+            storage: createJSONStorage(() => localStorage),
+            partialize: (state) => ({ settings: state.settings }),
+        }
     )
 );
 
-// Cleanup function for worker
 if (typeof window !== 'undefined') {
-    window.addEventListener('beforeunload', () => {
-        workerManager?.cleanup();
-    });
+    window.addEventListener('beforeunload', () => worker?.terminate());
 }

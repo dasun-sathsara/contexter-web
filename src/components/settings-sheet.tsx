@@ -5,7 +5,6 @@ import { Settings, ToggleLeft } from 'lucide-react';
 import { useFileStore } from '@/stores/file-store';
 import { Label } from './ui/label';
 import { Checkbox } from './ui/checkbox';
-import { Separator } from './ui/separator';
 
 export function SettingsSheet() {
     const { settings, setSettings } = useFileStore();

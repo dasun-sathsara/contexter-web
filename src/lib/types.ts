@@ -12,8 +12,8 @@ export interface ProcessingResult {
     file_tree: FileNode[];
     total_tokens: number;
     total_files: number;
-    total_size?: number;
-    processing_time_ms?: number;
+    total_size: number; // No longer optional
+    processing_time_ms: number; // No longer optional
 }
 
 export interface FileInput {

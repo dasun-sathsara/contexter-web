@@ -3,19 +3,18 @@ use std::sync::OnceLock;
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use tiktoken_rs::{cl100k_base, CoreBPE};
-use path_slash::PathExt;
-use std::path::Path;
+use crate::utils::{extract_file_name, normalize_path, set_panic_hook};
 
-// Use OnceLock for better performance and thread safety
+mod utils;
+
+// Use a thread-safe, one-time initialization for the BPE encoder.
 static TIKTOKEN_ENCODER: OnceLock<CoreBPE> = OnceLock::new();
-
 fn get_encoder() -> &'static CoreBPE {
-    TIKTOKEN_ENCODER.get_or_init(|| {
-        cl100k_base().expect("Failed to initialize tiktoken encoder")
-    })
+    TIKTOKEN_ENCODER.get_or_init(|| cl100k_base().expect("Failed to initialize tiktoken encoder"))
 }
 
-// Core data structures with better documentation and validation
+// --- Data Structures ---
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FileInput {
     pub path: String,
@@ -33,8 +32,6 @@ pub struct FileNode {
     pub children: Vec<FileNode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_modified: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -43,156 +40,70 @@ pub struct ProcessingResult {
     pub total_tokens: u32,
     pub total_files: u32,
     pub total_size: u64,
-    pub processing_time_ms: u32,
+    pub processing_time_ms: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FileMetadata {
     pub path: String,
     pub size: u32,
-    #[serde(default)]
-    pub last_modified: Option<u64>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct FilterOptions {
+    #[serde(default = "default_true")]
     pub text_only: bool,
-    pub max_file_size: Option<u32>,
-    pub include_patterns: Vec<String>,
-    pub exclude_patterns: Vec<String>,
+    #[serde(default = "default_max_file_size")]
+    pub max_file_size: u32,
+}
+fn default_true() -> bool { true }
+fn default_max_file_size() -> u32 { 2 * 1024 * 1024 } // 2MB
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct ProcessingOptions {
+    #[serde(default = "default_true")]
+    pub hide_empty_folders: bool,
+    #[serde(default = "default_true")]
+    pub show_token_count: bool,
 }
 
-impl Default for FilterOptions {
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct MarkdownOptions {
+    #[serde(default = "default_true")]
+    pub include_path_headers: bool,
+}
+
+// --- Filtering Logic ---
+
+struct TextFileDetector {
+    text_extensions: HashSet<&'static str>,
+}
+
+impl Default for TextFileDetector {
     fn default() -> Self {
         Self {
-            text_only: true,
-            max_file_size: Some(2 * 1024 * 1024), // 2MB
-            include_patterns: vec![],
-            exclude_patterns: vec![],
+            text_extensions: HashSet::from([
+                "js", "ts", "tsx", "jsx", "json", "md", "mdx", "html", "css", "scss", "sass", "less", "styl", "postcss",
+                "py", "pyi", "rb", "php", "sh", "bash", "zsh", "ps1", "bat", "cmd", "rs", "go", "java", "c", "cpp", "h", "hpp", "cs",
+                "txt", "yml", "yaml", "xml", "toml", "ini", "cfg", "conf", "config", "env", "mod", "sum", "lock",
+                "dockerfile", "gitignore", "gitattributes", "editorconfig", "prettierrc", "eslintrc",
+                "sql", "graphql", "gql", "vue", "svelte", "astro", "mjs", "cjs", "mts", "cts"
+            ]),
         }
     }
-}
-
-// Enhanced text file detection with configurable extensions
-struct TextFileDetector {
-    text_extensions: HashSet<String>,
-    binary_extensions: HashSet<String>,
 }
 
 impl TextFileDetector {
-    fn new() -> Self {
-        let text_extensions = [
-            "js", "ts", "tsx", "jsx", "json", "md", "mdx", "html", "css", "scss", "sass", "less",
-            "py", "pyi", "rs", "go", "java", "c", "cpp", "cc", "cxx", "h", "hpp", "hxx",
-            "hs", "lhs", "rb", "php", "sh", "bash", "zsh", "fish", "ps1", "bat", "cmd",
-            "txt", "rtf", "yml", "yaml", "xml", "toml", "ini", "conf", "config",
-            "dockerfile", "makefile", "cmake", "gradle", "properties", "env",
-            "gitignore", "gitattributes", "editorconfig", "eslintrc", "prettierrc",
-            "sql", "graphql", "gql", "proto", "thrift", "vue", "svelte", "astro",
-            "elm", "ex", "exs", "erl", "hrl", "ml", "mli", "fs", "fsi", "fsx",
-            "kt", "kts", "scala", "sc", "clj", "cljs", "cljc", "edn",
-            "r", "rmd", "rnw", "stata", "sas", "spss", "matlab", "m",
-            "tex", "bib", "cls", "sty", "dtx", "ins",
-        ].iter().map(|s| s.to_lowercase()).collect();
-
-        let binary_extensions = [
-            "exe", "dll", "so", "dylib", "bin", "obj", "o", "a", "lib",
-            "jpg", "jpeg", "png", "gif", "bmp", "tiff", "svg", "ico", "webp",
-            "mp3", "wav", "ogg", "flac", "aac", "m4a", "wma",
-            "mp4", "avi", "mkv", "mov", "wmv", "flv", "webm",
-            "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
-            "zip", "rar", "7z", "tar", "gz", "bz2", "xz",
-            "wasm", "class", "jar", "war", "ear",
-        ].iter().map(|s| s.to_lowercase()).collect();
-
-        Self {
-            text_extensions,
-            binary_extensions,
-        }
-    }
-
     fn is_likely_text(&self, path: &str) -> bool {
-        let path_obj = Path::new(path);
-        
-        // Check for known binary extensions first
-        if let Some(ext) = path_obj.extension().and_then(|s| s.to_str()) {
-            let ext_lower = ext.to_lowercase();
-            if self.binary_extensions.contains(&ext_lower) {
-                return false;
-            }
-            if self.text_extensions.contains(&ext_lower) {
-                return true;
-            }
+        let extension = path.rsplit('.').next().unwrap_or("").to_lowercase();
+        if self.text_extensions.contains(extension.as_str()) {
+            return true;
         }
-
-        // Special cases for files without extensions
-        if let Some(filename) = path_obj.file_name().and_then(|s| s.to_str()) {
-            let filename_lower = filename.to_lowercase();
-            match filename_lower.as_str() {
-                "license" | "readme" | "changelog" | "makefile" | "dockerfile" 
-                | "gemfile" | "rakefile" | "procfile" | "cmakelists.txt" => true,
-                _ => filename_lower.starts_with('.') && !filename_lower.ends_with(".lock")
-            }
-        } else {
-            false
-        }
+        // Handle files with no extension, e.g., "Dockerfile", "LICENSE"
+        let filename = path.rsplit('/').next().unwrap_or("").to_lowercase();
+        matches!(filename.as_str(), "dockerfile" | "makefile" | "license" | "readme")
     }
 }
-
-// Enhanced gitignore processing with better error handling
-struct GitignoreProcessor {
-    matcher: ignore::gitignore::Gitignore,
-}
-
-impl GitignoreProcessor {
-    fn new(gitignore_content: &str, root_path: &str) -> Result<Self, String> {
-        let mut builder = ignore::gitignore::GitignoreBuilder::new(root_path);
-        
-        if !gitignore_content.is_empty() {
-            for line in gitignore_content.lines() {
-                if let Err(e) = builder.add_line(None, line) {
-                    web_sys::console::warn_1(&format!("Invalid gitignore line '{}': {}", line, e).into());
-                }
-            }
-        }
-
-        // Add common ignore patterns
-        let _ = builder.add_line(None, "node_modules/");
-        let _ = builder.add_line(None, ".git/");
-        let _ = builder.add_line(None, "target/");
-        let _ = builder.add_line(None, "dist/");
-        let _ = builder.add_line(None, "build/");
-        let _ = builder.add_line(None, "*.log");
-
-        Ok(Self {
-            matcher: builder.build().map_err(|e| e.to_string())?,
-        })
-    }
-
-    fn should_ignore(&self, relative_path: &str) -> bool {
-        self.matcher.matched(Path::new(relative_path), false).is_ignore()
-    }
-}
-
-// Utility functions with better error handling
-fn extract_file_name(path: &str) -> String {
-    Path::new(path)
-        .file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_else(|| "Unknown".to_string())
-}
-
-fn normalize_path(path: &str) -> String {
-    Path::new(path).to_slash_lossy().to_string()
-}
-
-fn calculate_tokens(content: &str) -> Result<u32, String> {
-    let encoder = get_encoder();
-    let tokens = encoder.encode_with_special_tokens(content);
-    Ok(tokens.len() as u32)
-}
-
-// Main WASM exported functions with enhanced error handling and performance
 
 #[wasm_bindgen]
 pub fn filter_files(
@@ -201,417 +112,224 @@ pub fn filter_files(
     root_prefix: String,
     options_js: JsValue,
 ) -> Result<JsValue, JsValue> {
-    console_error_panic_hook::set_once();
-    
+    set_panic_hook();
     let start_time = js_sys::Date::now();
-    
-    let metadata: Vec<FileMetadata> = serde_wasm_bindgen::from_value(metadata_js)
-        .map_err(|e| format!("Failed to parse metadata: {}", e))?;
-    
-    let options: FilterOptions = serde_wasm_bindgen::from_value(options_js)
-        .unwrap_or_default();
 
-    let processor = GitignoreProcessor::new(&gitignore_content, "/")
-        .map_err(|e| format!("Failed to create gitignore processor: {}", e))?;
+    let metadata: Vec<FileMetadata> = serde_wasm_bindgen::from_value(metadata_js)
+        .map_err(|e| JsValue::from_str(&format!("Failed to parse metadata: {}", e)))?;
+    let options: FilterOptions = serde_wasm_bindgen::from_value(options_js).unwrap_or_default();
     
-    let _detector = TextFileDetector::new();
-    let max_size = options.max_file_size.unwrap_or(2 * 1024 * 1024);
+    let text_detector = TextFileDetector::default();
+    let mut gitignore_builder = ignore::gitignore::GitignoreBuilder::new(&root_prefix);
+    if let Err(e) = gitignore_builder.add_line(None, &gitignore_content) {
+         web_sys::console::warn_1(&format!("Invalid gitignore content: {}", e).into());
+    }
+    let gitignore = gitignore_builder.build().map_err(|e| e.to_string())?;
 
     let kept_paths: Vec<String> = metadata
         .into_iter()
         .filter(|meta| {
-            // Extract relative path for gitignore checking
-            let relative_path = if !root_prefix.is_empty() && meta.path.starts_with(&root_prefix) {
-                &meta.path[root_prefix.len()..].trim_start_matches('/')
-            } else {
-                meta.path.as_str()
-            };
-
-            // Skip if gitignore matches
-            if processor.should_ignore(relative_path) {
+            let relative_path = meta.path.strip_prefix(&root_prefix).unwrap_or(&meta.path);
+            
+            // Apply gitignore rules first
+            if gitignore.matched(relative_path, false).is_ignore() {
                 return false;
             }
 
-            // Skip if file is too large
-            if meta.size > max_size {
+            // Check file size limit
+            if meta.size > options.max_file_size {
                 return false;
             }
 
-            // Skip non-text files if text_only is enabled
-            if options.text_only && !TextFileDetector::new().is_likely_text(&meta.path) {
+            // If text_only, check extension
+            if options.text_only && !text_detector.is_likely_text(&meta.path) {
                 return false;
             }
-
-            // Apply custom include patterns
-            if !options.include_patterns.is_empty() {
-                let matches_include = options.include_patterns.iter()
-                    .any(|pattern| meta.path.contains(pattern));
-                if !matches_include {
-                    return false;
-                }
-            }
-
-            // Apply custom exclude patterns
-            if options.exclude_patterns.iter()
-                .any(|pattern| meta.path.contains(pattern)) {
-                return false;
-            }
-
             true
         })
         .map(|meta| meta.path)
         .collect();
-
-    let processing_time = (js_sys::Date::now() - start_time) as u32;
     
-    let result = serde_json::json!({
-        "paths": kept_paths,
-        "processingTimeMs": processing_time,
-        "filteredCount": kept_paths.len()
-    });
+    let processing_time = js_sys::Date::now() - start_time;
+    let result = serde_json::json!({ "paths": kept_paths, "processingTimeMs": processing_time });
 
     serde_wasm_bindgen::to_value(&result)
-        .map_err(|e| format!("Failed to serialize result: {}", e).into())
+        .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {}", e)))
 }
 
+
+// --- Tree Processing Logic ---
+
 #[wasm_bindgen]
-pub fn process_files(
-    files_js: JsValue,
-    options_js: JsValue,
-) -> Result<JsValue, JsValue> {
-    console_error_panic_hook::set_once();
-    
+pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, JsValue> {
+    set_panic_hook();
     let start_time = js_sys::Date::now();
-    
+
     let files: Vec<FileInput> = serde_wasm_bindgen::from_value(files_js)
-        .map_err(|e| format!("Failed to parse files: {}", e))?;
-    
-    let options: ProcessingOptions = serde_wasm_bindgen::from_value(options_js)
-        .unwrap_or_default();
+        .map_err(|e| JsValue::from_str(&format!("Failed to parse files: {}", e)))?;
+    let options: ProcessingOptions = serde_wasm_bindgen::from_value(options_js).unwrap_or_default();
 
-    let _detector = TextFileDetector::new();
-    
-    // Filter files with enhanced validation
-    let filtered_files: Vec<&FileInput> = files.iter()
-        .filter(|file| {
-            // Additional binary content check as fallback
-            if options.text_only {
-                // Check for null bytes (indicator of binary content)
-                if file.content.as_bytes().contains(&0) {
-                    return false;
-                }
-                // Check for high ratio of non-printable characters
-                let non_printable_count = file.content.chars()
-                    .filter(|c| c.is_control() && !c.is_whitespace())
-                    .count();
-                let total_chars = file.content.chars().count();
-                if total_chars > 0 && (non_printable_count as f32 / total_chars as f32) > 0.1 {
-                    return false;
-                }
-            }
-            true
-        })
-        .collect();
+    let mut nodes: HashMap<String, FileNode> = HashMap::new();
+    let mut total_size = 0;
+    let mut total_tokens = 0;
 
-    let mut node_map: HashMap<String, FileNode> = HashMap::new();
-    let mut total_size = 0u64;
+    for file in &files {
+        let path = normalize_path(&file.path);
+        let size = file.content.len() as u64;
+        total_size += size;
 
-    // Process files with enhanced error handling
-    for file in &filtered_files {
-        let normalized_path = normalize_path(&file.path);
-        let file_size = file.content.len() as u64;
-        total_size += file_size;
-
-        let token_count = if options.show_token_count {
-            Some(calculate_tokens(&file.content)?)
+        let tokens = if options.show_token_count {
+            get_encoder().encode_with_special_tokens(&file.content).len() as u32
         } else {
-            None
+            0
         };
+        total_tokens += tokens;
 
-        node_map.insert(normalized_path.clone(), FileNode {
-            path: normalized_path.clone(),
-            name: extract_file_name(&file.path),
+        // Insert the file node
+        nodes.insert(path.clone(), FileNode {
+            path: path.clone(),
+            name: extract_file_name(&path),
             is_dir: false,
-            token_count,
+            token_count: if options.show_token_count { Some(tokens) } else { None },
             children: vec![],
-            size: Some(file_size),
-            last_modified: None, // Could be added if available from JS
+            size: Some(size),
         });
 
-        // Build directory hierarchy
-        let mut current_path = Path::new(&normalized_path);
-        while let Some(parent_path) = current_path.parent() {
-            let parent_str = normalize_path(&parent_path.to_string_lossy());
-            if parent_str.is_empty() || parent_str == "." {
-                break;
-            }
-
-            node_map.entry(parent_str.clone()).or_insert_with(|| FileNode {
-                path: parent_str.clone(),
-                name: extract_file_name(&parent_str),
+        // Ensure all parent directories exist
+        let mut parent_path = std::path::Path::new(&path).parent();
+        while let Some(p) = parent_path {
+            if p.to_str().unwrap_or("").is_empty() { break; }
+            let parent_path_str = normalize_path(p.to_str().unwrap());
+            
+            nodes.entry(parent_path_str.clone()).or_insert_with(|| FileNode {
+                path: parent_path_str.clone(),
+                name: extract_file_name(&parent_path_str),
                 is_dir: true,
-                token_count: None,
+                token_count: if options.show_token_count { Some(0) } else { None },
                 children: vec![],
-                size: None,
-                last_modified: None,
+                size: Some(0),
             });
-            
-            current_path = parent_path;
+            parent_path = p.parent();
         }
     }
 
-    // Build tree structure efficiently
-    let mut root_nodes = Vec::new();
-    let paths: Vec<String> = node_map.keys().cloned().collect();
-    
-    for path_str in paths {
-        if let Some(parent_path) = Path::new(&path_str).parent() {
-            let parent_str = normalize_path(&parent_path.to_string_lossy());
-            
-            if parent_str.is_empty() || parent_str == "." {
-                // This is a root node
-                if let Some(node) = node_map.remove(&path_str) {
-                    root_nodes.push(node);
-                }
-            } else if let Some(child_node) = node_map.remove(&path_str) {
-                if let Some(parent_node) = node_map.get_mut(&parent_str) {
-                    parent_node.children.push(child_node);
-                }
+    // Assemble the tree structure
+    let mut root_nodes: Vec<FileNode> = Vec::new();
+    let mut node_keys: Vec<String> = nodes.keys().cloned().collect();
+    node_keys.sort_by(|a, b| b.len().cmp(&a.len())); // Process deeper paths first
+
+    for key in &node_keys {
+        if let Some(mut node) = nodes.remove(key) {
+            let parent_path_opt = std::path::Path::new(key).parent()
+                .and_then(|p| p.to_str())
+                .map(normalize_path);
+
+            if let Some(parent_path) = parent_path_opt {
+                 if !parent_path.is_empty() {
+                    if let Some(parent_node) = nodes.get_mut(&parent_path) {
+                        if options.show_token_count {
+                            parent_node.token_count = parent_node.token_count.zip(node.token_count).map(|(a,b)| a+b);
+                        }
+                        parent_node.size = parent_node.size.zip(node.size).map(|(a,b)| a+b);
+                        parent_node.children.push(node);
+                        continue;
+                    }
+                 }
             }
+            root_nodes.push(node);
         }
     }
-
-    // Post-process: calculate directory tokens and apply filters
-    fn post_process_node(node: &mut FileNode, options: &ProcessingOptions) -> u32 {
-        if node.is_dir {
-            let mut total_tokens = 0;
-            let mut total_size = 0;
-            
-            // Process children first
-            node.children.retain_mut(|child| {
-                let child_tokens = post_process_node(child, options);
-                total_tokens += child_tokens;
-                
-                if let Some(child_size) = child.size {
-                    total_size += child_size;
-                }
-                
-                // Keep non-empty directories or files
-                !options.hide_empty_folders || !child.is_dir || !child.children.is_empty()
-            });
-            
-            node.token_count = Some(total_tokens);
-            node.size = Some(total_size);
-            total_tokens
-        } else {
-            node.token_count.unwrap_or(0)
+    
+    // Sort and optionally hide empty folders
+    fn finalise_tree(nodes: &mut Vec<FileNode>, options: &ProcessingOptions) {
+        if options.hide_empty_folders {
+            nodes.retain(|node| !node.is_dir || !node.children.is_empty());
         }
-    }
-
-    let total_tokens = root_nodes.iter_mut()
-        .map(|node| post_process_node(node, &options))
-        .sum();
-
-    // Sort nodes: directories first, then alphabetically
-    fn sort_nodes_recursive(nodes: &mut Vec<FileNode>) {
+        
         nodes.sort_by(|a, b| {
-            match (a.is_dir, b.is_dir) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+            if a.is_dir != b.is_dir {
+                b.is_dir.cmp(&a.is_dir) // Directories first
+            } else {
+                a.name.to_lowercase().cmp(&b.name.to_lowercase())
             }
         });
-        
-        for node in nodes.iter_mut() {
+
+        for node in nodes {
             if node.is_dir {
-                sort_nodes_recursive(&mut node.children);
+                finalise_tree(&mut node.children, options);
             }
         }
     }
-
-    sort_nodes_recursive(&mut root_nodes);
     
-    let processing_time = (js_sys::Date::now() - start_time) as u32;
+    finalise_tree(&mut root_nodes, &options);
 
     let result = ProcessingResult {
         file_tree: root_nodes,
         total_tokens,
-        total_files: filtered_files.len() as u32,
+        total_files: files.len() as u32,
         total_size,
-        processing_time_ms: processing_time,
+        processing_time_ms: js_sys::Date::now() - start_time,
     };
 
     serde_wasm_bindgen::to_value(&result)
-        .map_err(|e| format!("Failed to serialize result: {}", e).into())
+        .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {}", e)))
 }
+
+
+// --- Markdown Generation ---
 
 #[wasm_bindgen]
-pub fn merge_files_to_markdown(
-    files_js: JsValue,
-    options_js: JsValue,
-) -> Result<String, JsValue> {
-    console_error_panic_hook::set_once();
-    
+pub fn merge_files_to_markdown(files_js: JsValue, options_js: JsValue) -> Result<String, JsValue> {
+    set_panic_hook();
     let files: Vec<FileInput> = serde_wasm_bindgen::from_value(files_js)
-        .map_err(|e| format!("Failed to parse files: {}", e))?;
+        .map_err(|e| JsValue::from_str(&format!("Failed to parse files: {}", e)))?;
+    let options: MarkdownOptions = serde_wasm_bindgen::from_value(options_js).unwrap_or_default();
     
-    let options: MarkdownOptions = serde_wasm_bindgen::from_value(options_js)
-        .unwrap_or_default();
+    if files.is_empty() { return Ok(String::new()); }
 
-    if files.is_empty() {
-        return Ok(String::new());
-    }
-
-    let mut output = String::with_capacity(files.iter().map(|f| f.content.len() + 100).sum());
-    
-    // Add header if requested
-    if options.include_header {
-        output.push_str("# Project Files\n\n");
-        output.push_str(&format!("Generated on {}\n", js_sys::Date::new_0().to_iso_string()));
-        output.push_str(&format!("Total files: {}\n\n", files.len()));
-    }
-
-    // Add table of contents if requested
-    if options.include_toc && files.len() > 1 {
-        output.push_str("## Table of Contents\n\n");
-        for (i, file) in files.iter().enumerate() {
-            output.push_str(&format!("{}. [{}](#{})\n", 
-                i + 1, 
-                file.path,
-                file.path.to_lowercase().replace(['/', '\\', ' ', '.'], "-")
-            ));
-        }
-        output.push_str("\n");
-    }
-
-    // Process each file
-    for (i, file) in files.iter().enumerate() {
-        if i > 0 {
-            output.push_str("\n\n");
-        }
-
-        // Determine language for syntax highlighting
+    let mut output = String::new();
+    for file in files {
         let language = detect_language(&file.path);
-        
         if options.include_path_headers {
-            output.push_str(&format!("#### File: `{}`\n\n", file.path));
+            output.push_str(&format!("#### File: `{}`\n", file.path));
         }
-
-        // Add file stats if requested
-        if options.include_stats {
-            let lines = file.content.lines().count();
-            let chars = file.content.chars().count();
-            output.push_str(&format!("*Lines: {}, Characters: {}*\n\n", lines, chars));
-        }
-
-        // Add the code block
         output.push_str(&format!("```{}\n", language));
         output.push_str(file.content.trim());
-        output.push_str("\n```");
+        output.push_str("\n```\n\n");
     }
-
-    Ok(output)
-}
-
-// Helper functions and types
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ProcessingOptions {
-    pub text_only: bool,
-    pub hide_empty_folders: bool,
-    pub show_token_count: bool,
-}
-
-impl Default for ProcessingOptions {
-    fn default() -> Self {
-        Self {
-            text_only: true,
-            hide_empty_folders: true,
-            show_token_count: true,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct MarkdownOptions {
-    pub include_header: bool,
-    pub include_toc: bool,
-    pub include_path_headers: bool,
-    pub include_stats: bool,
-}
-
-impl Default for MarkdownOptions {
-    fn default() -> Self {
-        Self {
-            include_header: false,
-            include_toc: false,
-            include_path_headers: true,
-            include_stats: false,
-        }
-    }
+    Ok(output.trim().to_string())
 }
 
 fn detect_language(path: &str) -> &'static str {
-    if let Some(ext) = Path::new(path).extension().and_then(|s| s.to_str()) {
-        match ext.to_lowercase().as_str() {
-            "js" | "mjs" | "cjs" => "javascript",
-            "ts" | "mts" | "cts" => "typescript",
-            "tsx" => "tsx",
-            "jsx" => "jsx",
-            "py" | "pyi" => "python",
-            "rs" => "rust",
-            "go" => "go",
-            "java" => "java",
-            "c" => "c",
-            "cpp" | "cc" | "cxx" => "cpp",
-            "h" | "hpp" | "hxx" => "cpp",
-            "cs" => "csharp",
-            "php" => "php",
-            "rb" => "ruby",
-            "swift" => "swift",
-            "kt" | "kts" => "kotlin",
-            "scala" | "sc" => "scala",
-            "hs" | "lhs" => "haskell",
-            "ml" | "mli" => "ocaml",
-            "fs" | "fsi" | "fsx" => "fsharp",
-            "clj" | "cljs" | "cljc" => "clojure",
-            "ex" | "exs" => "elixir",
-            "erl" | "hrl" => "erlang",
-            "html" | "htm" => "html",
-            "css" => "css",
-            "scss" => "scss",
-            "sass" => "sass",
-            "less" => "less",
-            "json" => "json",
-            "xml" => "xml",
-            "yaml" | "yml" => "yaml",
-            "toml" => "toml",
-            "ini" => "ini",
-            "sh" | "bash" => "bash",
-            "ps1" => "powershell",
-            "sql" => "sql",
-            "md" | "mdx" => "markdown",
-            "tex" => "latex",
-            "r" => "r",
-            "m" => "matlab",
-            "dockerfile" => "dockerfile",
-            "makefile" => "makefile",
-            _ => "",
-        }
-    } else {
-        // Handle files without extensions
-        let filename = Path::new(path)
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-            
-        match filename.as_str() {
-            "dockerfile" => "dockerfile",
-            "makefile" => "makefile",
-            "gemfile" | "rakefile" => "ruby",
-            "procfile" => "text",
-            _ => "",
-        }
+    match path.rsplit('.').next().unwrap_or("") {
+        "js" | "mjs" | "cjs" => "javascript",
+        "ts" | "mts" | "cts" => "typescript",
+        "tsx" => "tsx",
+        "jsx" => "jsx",
+        "py" => "python",
+        "rs" => "rust",
+        "go" => "go",
+        "java" => "java",
+        "c" => "c",
+        "h" => "c",
+        "cpp" | "cxx" | "cc" => "cpp",
+        "hpp" | "hxx" => "cpp",
+        "cs" => "csharp",
+        "php" => "php",
+        "rb" => "ruby",
+        "swift" => "swift",
+        "kt" | "kts" => "kotlin",
+        "html" | "htm" => "html",
+        "css" => "css",
+        "scss" => "scss",
+        "json" => "json",
+        "xml" => "xml",
+        "yaml" | "yml" => "yaml",
+        "toml" => "toml",
+        "sh" | "bash" | "zsh" => "bash",
+        "sql" => "sql",
+        "md" | "mdx" => "markdown",
+        "dockerfile" => "dockerfile",
+        _ => if path.to_lowercase().ends_with("makefile") { "makefile" } else { "" }
     }
 }
