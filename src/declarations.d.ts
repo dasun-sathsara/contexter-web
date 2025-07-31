@@ -1,34 +1,7 @@
-declare module '*.wasm' {
-    const src: string;
-    export default src;
-}
+// This file is now much simpler.
+// It mainly provides global types that might be used across the app.
 
-declare module '*.wasm?url' {
-    const src: string;
-    export default src;
-}
-
-declare module '/contexter_wasm.js' {
-    export default function init(): Promise<void>;
-    export function merge_files_to_markdown(files: unknown, options: unknown): string;
-    export function filter_files(metadata: unknown, gitignoreContent: string, rootPrefix: string, options: unknown): unknown;
-    export function process_files(files: unknown, options: unknown): unknown;
-}
-
-declare module 'worker-loader!*' {
-    class WebpackWorker extends Worker {
-        constructor();
-    }
-    export default WebpackWorker;
-}
-
-declare module '*.worker.ts' {
-    class WebpackWorker extends Worker {
-        constructor();
-    }
-    export default WebpackWorker;
-}
-
+// Allows using `webkitdirectory` on input elements for folder selection.
 declare global {
     namespace React {
         interface InputHTMLAttributes<T extends HTMLInputElement = HTMLInputElement> {
@@ -37,4 +10,13 @@ declare global {
     }
 }
 
+// Handles imports for web workers with modern bundlers.
+declare module '*.worker.ts' {
+    class WebpackWorker extends Worker {
+        constructor();
+    }
+    export default WebpackWorker;
+}
+
+// Required to make this file a module.
 export { };

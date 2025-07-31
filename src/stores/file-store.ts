@@ -2,26 +2,31 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { enableMapSet } from 'immer';
-import { FileNode, VimMode, FileInput, ProcessingResult, Settings } from '@/lib/types';
+import { FileNode, VimMode, FileInput, ProcessingResult, Settings, FileMetadata } from '@/lib/types';
 import { toast } from 'sonner';
 
 enableMapSet();
-// Extend File to include webkitRelativePath provided by directory input
+
+// A non-standard property provided by browsers for directory uploads.
 type FileWithPath = File & { webkitRelativePath: string };
 
 // --- Worker Management ---
 
 let worker: Worker | null = null;
-const getWorker = () => {
+const getWorker = (): Worker | null => {
     if (typeof window === 'undefined') return null;
     if (!worker) {
+        // The `new URL(...)` syntax is the modern, standard way to instantiate workers.
         worker = new Worker(new URL('../workers/file-processor.worker.ts', import.meta.url));
     }
     return worker;
 };
 
-// This state is kept at the module level, private to the store's implementation.
-// It bridges the gap between the `processFiles` call and the worker's async response.
+/**
+ * A module-level variable to hold the array of File objects between the
+ * initial filtering and the file reading steps. This avoids passing the full
+ * File list to/from the worker, improving performance.
+ */
 let pendingFiles: FileWithPath[] | null = null;
 
 // --- Store Definition ---
@@ -30,7 +35,7 @@ interface FileState {
     // Core Data
     fileTree: FileNode[];
     fileMap: Map<string, FileNode>;
-    rootFiles: Map<string, string>; // path -> content
+    rootFiles: Map<string, string>; // Maps file path to its content
 
     // UI & Processing State
     isLoading: boolean;
@@ -48,7 +53,7 @@ interface FileState {
     visualAnchorPath: string | null;
 
     // Actions
-    processFiles: (files: FileWithPath[]) => Promise<void>;
+    processFiles: (files: File[]) => Promise<void>;
     reprocessFiles: () => Promise<void>;
     setSettings: (newSettings: Partial<Settings>) => void;
     clearAll: () => void;
@@ -66,12 +71,13 @@ interface FileState {
 const defaultSettings: Settings = {
     hideEmptyFolders: true,
     showTokenCount: true,
+    maxFileSize: 2 * 1024 * 1024, // 2MB
 };
 
 export const useFileStore = create<FileState>()(
     persist(
         immer((set, get) => {
-            // This is an internal helper function, not part of the public store API.
+            // Internal helper to read file contents after filtering.
             const _readAndProcessFiles = async (pathsToRead: string[]) => {
                 if (!pendingFiles) {
                     toast.error("An internal error occurred: pending files not found.");
@@ -81,7 +87,7 @@ export const useFileStore = create<FileState>()(
 
                 set({ statusMessage: `Reading ${pathsToRead.length} files...` });
 
-                const fileMap = new Map(pendingFiles.map((f: FileWithPath) => [f.webkitRelativePath, f]));
+                const fileMap = new Map(pendingFiles.map((f) => [f.webkitRelativePath, f]));
                 const fileInputs: FileInput[] = [];
                 const rootFileContents = new Map<string, string>();
 
@@ -90,24 +96,20 @@ export const useFileStore = create<FileState>()(
                     if (file) {
                         try {
                             const content = await file.text();
-                            // Basic check to ensure we're not reading a binary file that slipped through
-                            if (!content.includes('\uFFFD')) {
+                            // Basic check for binary files.
+                            if (!content.includes('\uFFFD')) { // REPLACEMENT CHARACTER
                                 fileInputs.push({ path, content });
                                 rootFileContents.set(path, content);
-                            } else {
-                                console.warn(`Skipping file with invalid characters (likely binary): ${path}`);
                             }
-                        } catch {
-                            console.warn(`Could not read file: ${path}`);
+                        } catch (e) {
+                            console.warn(`Could not read file: ${path}`, e);
                         }
                     }
                 });
 
                 await Promise.all(readPromises);
-                set({ rootFiles: rootFileContents, statusMessage: `Processing ${fileInputs.length} files...` });
-
-                // Clean up the temporary state
-                pendingFiles = null;
+                set({ rootFiles: rootFileContents, statusMessage: `Processing ${fileInputs.length} text files...` });
+                pendingFiles = null; // Clean up temporary state
 
                 getWorker()?.postMessage({
                     type: 'process-files',
@@ -115,7 +117,7 @@ export const useFileStore = create<FileState>()(
                 });
             };
 
-            // Setup worker listeners once
+            // Setup worker listeners once when the store is created.
             const workerInstance = getWorker();
             if (workerInstance) {
                 workerInstance.onmessage = (event: MessageEvent) => {
@@ -123,9 +125,7 @@ export const useFileStore = create<FileState>()(
 
                     switch (type) {
                         case 'filter-complete': {
-                            const { paths } = payload;
-                            // Call the internal helper function
-                            _readAndProcessFiles(paths);
+                            _readAndProcessFiles(payload.paths);
                             break;
                         }
                         case 'processing-complete': {
@@ -134,7 +134,7 @@ export const useFileStore = create<FileState>()(
                             const traverse = (nodes: FileNode[]) => {
                                 for (const node of nodes) {
                                     fileMap.set(node.path, node);
-                                    if (node.children.length > 0) traverse(node.children);
+                                    if (node.children?.length > 0) traverse(node.children);
                                 }
                             };
                             traverse(result.file_tree);
@@ -143,8 +143,7 @@ export const useFileStore = create<FileState>()(
                                 state.fileTree = result.file_tree;
                                 state.fileMap = fileMap;
                                 state.isLoading = false;
-                                // THIS LINE IS FIXED
-                                state.statusMessage = `Processed ${result.total_files} files (${((result.total_size ?? 0) / 1024).toFixed(1)} KB)`;
+                                state.statusMessage = `Processed ${result.total_files} files (${(result.total_size / 1024).toFixed(1)} KB)`;
                                 state.cursorPath = result.file_tree[0]?.path ?? null;
                             });
                             toast.success("Project processed successfully!", {
@@ -168,39 +167,34 @@ export const useFileStore = create<FileState>()(
             }
 
             return {
-                // Initial State
-                fileTree: [],
-                fileMap: new Map(),
-                rootFiles: new Map(),
-                isLoading: false,
-                statusMessage: 'Ready. Drop a folder to get started.',
-                settings: defaultSettings,
-                currentFolderPath: null,
-                navigationStack: [],
-                vimMode: 'normal',
-                selectedPaths: new Set(),
-                cursorPath: null,
-                visualAnchorPath: null,
+                // --- Initial State ---
+                fileTree: [], fileMap: new Map(), rootFiles: new Map(),
+                isLoading: false, statusMessage: 'Ready. Drop a folder to get started.',
+                settings: defaultSettings, currentFolderPath: null, navigationStack: [],
+                vimMode: 'normal', selectedPaths: new Set(), cursorPath: null, visualAnchorPath: null,
 
                 // --- Actions ---
-
-                processFiles: async (files: FileWithPath[]) => {
+                processFiles: async (files: File[]) => {
                     if (files.length === 0) return;
 
-                    set({ isLoading: true, statusMessage: 'Analyzing project structure...' });
+                    set({ isLoading: true, statusMessage: 'Analyzing project structure...', fileTree: [], fileMap: new Map() });
 
-                    const gitignoreFile = files.find((f) => f.webkitRelativePath.endsWith('.gitignore'));
+                    const filesWithPath = files as FileWithPath[];
+                    const firstPath = filesWithPath[0]?.webkitRelativePath;
+
+                    if (!firstPath) {
+                        toast.error("Could not process files.", { description: "The dropped items don't appear to be a folder." });
+                        set({ isLoading: false, statusMessage: 'Error: Not a valid folder.' });
+                        return;
+                    }
+
+                    pendingFiles = filesWithPath;
+
+                    const gitignoreFile = filesWithPath.find((f) => f.webkitRelativePath.endsWith('.gitignore'));
                     const gitignoreContent = gitignoreFile ? await gitignoreFile.text() : '';
-                    const firstPath = files[0]?.webkitRelativePath || '';
                     const rootPrefix = firstPath.substring(0, firstPath.indexOf('/') + 1);
 
-                    const metadata = files.map((f) => ({
-                        path: f.webkitRelativePath,
-                        size: f.size
-                    }));
-
-                    // Use the private module-level variable to store files temporarily
-                    pendingFiles = files;
+                    const metadata: FileMetadata[] = filesWithPath.map((f) => ({ path: f.webkitRelativePath, size: f.size }));
 
                     getWorker()?.postMessage({
                         type: 'filter-files',
@@ -211,61 +205,47 @@ export const useFileStore = create<FileState>()(
                 reprocessFiles: async () => {
                     const { rootFiles, settings } = get();
                     if (rootFiles.size === 0) return;
-                    set({ isLoading: true, statusMessage: 'Re-processing files...' });
-
+                    set({ isLoading: true, statusMessage: 'Re-processing with new settings...' });
                     const fileInputs = Array.from(rootFiles.entries()).map(([path, content]) => ({ path, content }));
-
-                    getWorker()?.postMessage({
-                        type: 'process-files',
-                        payload: { files: fileInputs, settings }
-                    });
+                    getWorker()?.postMessage({ type: 'process-files', payload: { files: fileInputs, settings } });
                 },
 
                 setSettings: (newSettings) => {
                     const oldSettings = get().settings;
-                    set(state => {
-                        state.settings = { ...state.settings, ...newSettings };
-                    });
-
-                    if (get().fileTree.length > 0 && JSON.stringify(oldSettings) !== JSON.stringify(get().settings)) {
-                        get().reprocessFiles();
+                    const updatedSettings = { ...oldSettings, ...newSettings };
+                    if (JSON.stringify(oldSettings) !== JSON.stringify(updatedSettings)) {
+                        set({ settings: updatedSettings });
+                        if (get().fileTree.length > 0) get().reprocessFiles();
                     }
                 },
 
                 clearAll: () => {
                     set({
-                        fileTree: [],
-                        fileMap: new Map(),
-                        rootFiles: new Map(),
-                        isLoading: false,
-                        statusMessage: 'Ready. Drop a folder to get started.',
-                        currentFolderPath: null,
-                        navigationStack: [],
-                        selectedPaths: new Set(),
-                        cursorPath: null,
+                        fileTree: [], fileMap: new Map(), rootFiles: new Map(),
+                        isLoading: false, statusMessage: 'Ready. Drop a folder to get started.',
+                        currentFolderPath: null, navigationStack: [], selectedPaths: new Set(),
+                        cursorPath: null, vimMode: 'normal', visualAnchorPath: null,
                     });
                     toast.info("Project cleared.");
                 },
 
                 navigateInto: (path) => {
-                    const node = get().fileMap.get(path);
-                    if (node?.is_dir) {
+                    if (get().fileMap.get(path)?.is_dir) {
                         set(state => {
                             state.navigationStack.push(state.currentFolderPath || 'root');
                             state.currentFolderPath = path;
-                            state.cursorPath = '..';
+                            state.cursorPath = '..'; // For intuitive navigation
                         });
                     }
                 },
 
                 navigateBack: () => {
-                    const { navigationStack } = get();
-                    if (navigationStack.length > 0) {
+                    if (get().navigationStack.length > 0) {
                         set(state => {
                             const previousPath = state.currentFolderPath;
                             const newCurrent = state.navigationStack.pop()!;
                             state.currentFolderPath = newCurrent === 'root' ? null : newCurrent;
-                            state.cursorPath = previousPath;
+                            state.cursorPath = previousPath; // Set cursor on the folder we left
                         });
                     }
                 },
@@ -273,31 +253,31 @@ export const useFileStore = create<FileState>()(
                 setCursor: (path) => set({ cursorPath: path }),
                 toggleSelection: (path) => {
                     set(state => {
-                        if (state.selectedPaths.has(path)) {
-                            state.selectedPaths.delete(path);
-                        } else {
-                            state.selectedPaths.add(path);
-                        }
+                        state.selectedPaths.has(path) ? state.selectedPaths.delete(path) : state.selectedPaths.add(path);
                     });
                 },
                 setSelection: (paths) => set({ selectedPaths: new Set(paths) }),
-                setVimMode: (mode) => set({ vimMode: mode, visualAnchorPath: mode === 'normal' ? null : get().cursorPath }),
+                setVimMode: (mode) => {
+                    if (mode === 'visual' && get().cursorPath) {
+                        set({ vimMode: 'visual', visualAnchorPath: get().cursorPath, selectedPaths: new Set([get().cursorPath!]) });
+                    } else {
+                        set({ vimMode: 'normal', visualAnchorPath: null, selectedPaths: new Set() });
+                    }
+                },
                 setVisualAnchor: (path) => set({ visualAnchorPath: path }),
 
                 yankToClipboard: (pathsToYank) => {
-                    const { selectedPaths, fileMap, rootFiles } = get();
-                    const paths = pathsToYank || selectedPaths;
+                    const paths = pathsToYank || get().selectedPaths;
                     if (paths.size === 0) return;
 
                     const filesToMerge: FileInput[] = [];
                     const collectFiles = (path: string) => {
-                        const node = fileMap.get(path);
+                        const node = get().fileMap.get(path);
                         if (!node) return;
-                        if (!node.is_dir) {
-                            const content = rootFiles.get(path);
+                        if (node.is_dir) node.children.forEach(child => collectFiles(child.path));
+                        else {
+                            const content = get().rootFiles.get(path);
                             if (content) filesToMerge.push({ path, content });
-                        } else {
-                            node.children.forEach(child => collectFiles(child.path));
                         }
                     };
                     paths.forEach(collectFiles);
@@ -309,7 +289,7 @@ export const useFileStore = create<FileState>()(
                     toast.info(`Copying ${filesToMerge.length} files...`);
                     getWorker()?.postMessage({
                         type: 'merge-files',
-                        payload: { files: filesToMerge, options: {} }
+                        payload: { files: filesToMerge, options: { includePathHeaders: true } }
                     });
                 },
 
@@ -319,63 +299,35 @@ export const useFileStore = create<FileState>()(
 
                     set(state => {
                         const allPathsToDelete = new Set<string>();
-                        const parentsToUpdate = new Map<string, { tokenDelta: number, sizeDelta: number }>();
-
                         const collectPaths = (path: string) => {
                             if (allPathsToDelete.has(path)) return;
                             const node = state.fileMap.get(path);
                             if (!node) return;
-
                             allPathsToDelete.add(path);
-                            if (node.is_dir) {
-                                node.children.forEach(child => collectPaths(child.path));
-                            }
+                            if (node.is_dir) node.children.forEach(child => collectPaths(child.path));
                         };
                         paths.forEach(p => collectPaths(p));
 
-                        // Determine cursor's next position before mutation
-                        const currentView = state.currentFolderPath
-                            ? state.fileMap.get(state.currentFolderPath)?.children ?? []
-                            : state.fileTree;
-                        const cursorIdx = currentView.findIndex(item => item.path === state.cursorPath);
-                        const remainingView = currentView.filter(item => !allPathsToDelete.has(item.path));
-                        let nextCursorPath: string | null = null;
-                        if (remainingView.length > 0) {
-                            nextCursorPath = remainingView[Math.min(cursorIdx, remainingView.length - 1)].path;
-                        } else if (state.currentFolderPath) {
-                            nextCursorPath = '..';
-                        }
-                        state.cursorPath = nextCursorPath;
+                        // Smart cursor placement
+                        const view = state.currentFolderPath ? state.fileMap.get(state.currentFolderPath)?.children ?? [] : state.fileTree;
+                        const cursorIdx = view.findIndex(item => item.path === state.cursorPath);
+                        const remaining = view.filter(item => !allPathsToDelete.has(item.path));
+                        state.cursorPath = remaining.length > 0 ? remaining[Math.min(cursorIdx, remaining.length - 1)].path : (state.currentFolderPath ? '..' : null);
 
-                        // Delete nodes and prepare parent updates
+                        // Mutate state
                         allPathsToDelete.forEach(path => {
-                            const node = state.fileMap.get(path);
-                            if (!node) return;
-
-                            const parentPath = node.path.substring(0, node.path.lastIndexOf('/'));
-                            if (state.fileMap.has(parentPath)) {
-                                const update = parentsToUpdate.get(parentPath) || { tokenDelta: 0, sizeDelta: 0 };
-                                update.tokenDelta -= node.token_count || 0;
-                                update.sizeDelta -= node.size || 0;
-                                parentsToUpdate.set(parentPath, update);
-                            }
-
                             state.fileMap.delete(path);
-                            if (!node.is_dir) state.rootFiles.delete(path);
+                            state.rootFiles.delete(path);
                         });
 
-                        // Update tree structure and parent stats
-                        const updateParents = (node: FileNode) => {
-                            node.children = node.children.filter(child => !allPathsToDelete.has(child.path));
-                            if (parentsToUpdate.has(node.path)) {
-                                const delta = parentsToUpdate.get(node.path)!;
-                                if (node.token_count) node.token_count += delta.tokenDelta;
-                                if (node.size) node.size += delta.sizeDelta;
-                            }
-                            node.children.forEach(updateParents);
+                        // Rebuild tree structure. Note: Parent stats will be stale until re-process.
+                        const filterTree = (nodes: FileNode[]): FileNode[] => {
+                            return nodes.filter(n => !allPathsToDelete.has(n.path)).map(n => ({
+                                ...n,
+                                children: n.is_dir ? filterTree(n.children) : [],
+                            }));
                         };
-                        state.fileTree.forEach(updateParents);
-                        state.fileTree = state.fileTree.filter(node => !allPathsToDelete.has(node.path));
+                        state.fileTree = filterTree(state.fileTree);
 
                         state.selectedPaths.clear();
                         state.vimMode = 'normal';
@@ -386,7 +338,7 @@ export const useFileStore = create<FileState>()(
             };
         }),
         {
-            name: 'contexter-file-store',
+            name: 'contexter-file-store-v2', // Changed name to avoid conflicts with old state
             storage: createJSONStorage(() => localStorage),
             partialize: (state) => ({ settings: state.settings }),
         }

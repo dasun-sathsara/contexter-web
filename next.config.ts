@@ -4,48 +4,19 @@ const nextConfig: NextConfig = {
   experimental: {
     webpackBuildWorker: true,
   },
-  webpack(config, { isServer, webpack }) {
+  webpack(config) {
+    // Experiments for WASM and workers, recommended for modern setups.
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
       layers: true,
     };
 
-    // Handle WASM files
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: 'asset/resource',
-      generator: {
-        filename: 'static/wasm/[name].[hash][ext]',
-      },
-    });
+    // We no longer need a special rule for .wasm files, as we're not importing them directly.
+    // The wasm-bindgen JS glue code will fetch it using `new URL('...'.wasm', import.meta.url)`.
+    // Modern bundlers (Webpack 5+, Turbopack) understand this pattern and will copy the asset correctly.
 
-    // Handle worker files properly
-    if (!isServer) {
-      config.module.rules.push({
-        test: /\.worker\.(js|ts)$/,
-        use: {
-          loader: 'worker-loader',
-          options: {
-            publicPath: '/_next/',
-          },
-        },
-      });
-
-      // Add worker-loader plugin for Turbopack compatibility
-      config.plugins.push(
-        new webpack.DefinePlugin({
-          'process.env.WORKER_DEV': JSON.stringify(process.env.NODE_ENV === 'development'),
-        })
-      );
-    }
-
-    // Ensure proper public path
-    if (!isServer) {
-      config.output.publicPath = '/_next/';
-    }
-
-    // Fallback for Node.js modules in client
+    // Fallback for Node.js modules in client-side code.
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -55,36 +26,30 @@ const nextConfig: NextConfig = {
 
     return config;
   },
-  // Static file serving with proper headers
+  // Set required headers for cross-origin isolation and correct MIME type for WASM.
   async headers() {
     return [
       {
-        source: '/contexter_wasm_bg.wasm',
+        // This rule is important. It ensures that any .wasm file served
+        // has the correct MIME type. The browser requires this.
+        source: "/:path*{.wasm}",
         headers: [
           {
-            key: 'Content-Type',
-            value: 'application/wasm',
-          },
-          {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
-          },
-          {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
+            key: "Content-Type",
+            value: "application/wasm",
           },
         ],
       },
       {
-        source: '/(.*)',
+        source: "/:path*",
         headers: [
           {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
+            key: "Cross-Origin-Embedder-Policy",
+            value: "require-corp",
           },
           {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin",
           },
         ],
       },
