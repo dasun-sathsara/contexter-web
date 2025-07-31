@@ -6,7 +6,7 @@ import type { FileInput, FilterOptions, MarkdownOptions, ProcessingOptions, Proc
 
 // A type-safe interface for the WASM module's exports.
 type WasmApi = {
-    filter_files(metadata: FileMetadata[], gitignoreContent: string, rootPrefix: string, options: FilterOptions): Map<string, any>;
+    filter_files(metadata: FileMetadata[], gitignoreContent: string, rootPrefix: string, options: FilterOptions): { paths: string[]; processingTimeMs: number };
     process_files(files: FileInput[], options: ProcessingOptions): ProcessingResult;
     merge_files_to_markdown(files: FileInput[], options: MarkdownOptions): string;
 };
@@ -41,13 +41,8 @@ self.onmessage = async (event: MessageEvent) => {
         switch (type) {
             case 'filter-files': {
                 console.log('[Worker] Calling WASM filter_files with:', payload);
-                const resultMap = wasm.filter_files(payload.metadata, payload.gitignoreContent, payload.rootPrefix, payload.settings);
-                console.log('[Worker] WASM filter_files result:', resultMap);
-                // Convert Map to a plain object before posting back to the main thread.
-                const result = {
-                    paths: resultMap.get('paths'),
-                    processingTimeMs: resultMap.get('processingTimeMs')
-                };
+                const result = wasm.filter_files(payload.metadata, payload.gitignoreContent, payload.rootPrefix, payload.settings);
+                console.log('[Worker] WASM filter_files result:', result);
                 self.postMessage({ type: 'filter-complete', payload: result });
                 break;
             }

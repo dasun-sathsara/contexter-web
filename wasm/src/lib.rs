@@ -1,6 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::OnceLock;
 use wasm_bindgen::prelude::*;
+use ignore::gitignore::GitignoreBuilder;
 use serde::{Deserialize, Serialize};
 use tiktoken_rs::{cl100k_base, CoreBPE};
 use crate::utils::{extract_file_name, normalize_path, set_panic_hook};
@@ -82,41 +83,37 @@ pub struct MarkdownOptions {
 
 // --- Filtering Logic ---
 
-struct TextFileDetector {
-    text_extensions: HashSet<&'static str>,
-}
+static TEXT_EXTENSIONS: &[&str] = &[
+    "js", "ts", "tsx", "jsx", "json", "md", "mdx", "html", "css", "scss", "sass", "less", "styl", "postcss",
+    "py", "pyi", "rb", "php", "sh", "bash", "zsh", "ps1", "bat", "cmd", "rs", "go", "java", "c", "cpp", "h", "hpp", "cs",
+    "txt", "yml", "yaml", "xml", "toml", "ini", "cfg", "conf", "config", "env", "mod", "sum", "lock",
+    "dockerfile", "gitignore", "gitattributes", "editorconfig", "prettierrc", "eslintrc",
+    "sql", "graphql", "gql", "vue", "svelte", "astro", "mjs", "cjs", "mts", "cts"
+];
 
-impl Default for TextFileDetector {
-    fn default() -> Self {
-        Self {
-            text_extensions: HashSet::from([
-                "js", "ts", "tsx", "jsx", "json", "md", "mdx", "html", "css", "scss", "sass", "less", "styl", "postcss",
-                "py", "pyi", "rb", "php", "sh", "bash", "zsh", "ps1", "bat", "cmd", "rs", "go", "java", "c", "cpp", "h", "hpp", "cs",
-                "txt", "yml", "yaml", "xml", "toml", "ini", "cfg", "conf", "config", "env", "mod", "sum", "lock",
-                "dockerfile", "gitignore", "gitattributes", "editorconfig", "prettierrc", "eslintrc",
-                "sql", "graphql", "gql", "vue", "svelte", "astro", "mjs", "cjs", "mts", "cts"
-            ]),
-        }
-    }
-}
+static SPECIAL_FILENAMES: &[&str] = &["dockerfile", "makefile", "license", "readme"];
 
-impl TextFileDetector {
-    fn is_likely_text(&self, path: &str) -> bool {
-        let extension = path.rsplit('.').next().unwrap_or("").to_lowercase();
-        if self.text_extensions.contains(extension.as_str()) {
+fn is_likely_text_file(path: &str) -> bool {
+    // Check extension
+    if let Some(extension) = path.rsplit('.').next() {
+        if TEXT_EXTENSIONS.contains(&extension.to_lowercase().as_str()) {
             return true;
         }
-        // Handle files with no extension, e.g., "Dockerfile", "LICENSE"
-        let filename = path.rsplit('/').next().unwrap_or("").to_lowercase();
-        matches!(filename.as_str(), "dockerfile" | "makefile" | "license" | "readme")
     }
+    
+    // Check special filenames without extensions
+    if let Some(filename) = path.rsplit('/').next() {
+        return SPECIAL_FILENAMES.contains(&filename.to_lowercase().as_str());
+    }
+    
+    false
 }
 
 #[wasm_bindgen]
 pub fn filter_files(
     metadata_js: JsValue,
     gitignore_content: String,
-    root_prefix: String,
+    _root_prefix: String, // Keep for API compatibility but don't use
     options_js: JsValue,
 ) -> Result<JsValue, JsValue> {
     set_panic_hook();
@@ -129,28 +126,41 @@ pub fn filter_files(
     // Log received options for debugging
     web_sys::console::log_1(&format!("[WASM] Filter options: {:?}", options).into());
     web_sys::console::log_1(&format!("[WASM] Gitignore content length: {}", gitignore_content.len()).into());
-    web_sys::console::log_1(&format!("[WASM] Root prefix: {}", root_prefix).into());
 
-    let text_detector = TextFileDetector::default();
-    let mut gitignore_builder = ignore::gitignore::GitignoreBuilder::new(&root_prefix);
-    if let Err(e) = gitignore_builder.add_line(None, &gitignore_content) {
-         web_sys::console::warn_1(&format!("Invalid gitignore content: {}", e).into());
+    // Build gitignore patterns from .gitignore content, skipping blank lines and comments
+    let mut gitignore_builder = GitignoreBuilder::new(".");
+    for (idx, raw_line) in gitignore_content.lines().enumerate() {
+        let line = raw_line.trim();
+        // Skip empty and comment lines
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Err(e) = gitignore_builder.add_line(None, line) {
+            web_sys::console::warn_1(&format!("Invalid gitignore pattern on line {}: {}", idx + 1, e).into());
+        }
     }
-    let gitignore = gitignore_builder.build().map_err(|e| e.to_string())?;
+    let gitignore = gitignore_builder
+        .build()
+        .map_err(|e| JsValue::from_str(&format!("Failed to build gitignore: {}", e)))?;
 
     let kept_paths: Vec<String> = metadata
         .into_iter()
         .filter(|meta| {
             let is_dir = meta.path.ends_with('/');
-            let relative_path = meta.path.strip_prefix(&root_prefix).unwrap_or(&meta.path);
             
-            // Apply gitignore rules first
+            // Strip the root prefix to get paths relative to the project root
+            let relative_path = if let Some(first_slash) = meta.path.find('/') {
+                &meta.path[first_slash + 1..]
+            } else {
+                &meta.path
+            };
+            
+            // Apply gitignore rules first - paths are now relative to project root
             if gitignore.matched(relative_path, is_dir).is_ignore() {
                 return false;
             }
 
-            // If it's a directory, we don't apply size/text checks, just keep it for now.
-            // The tree building logic will handle empty directories later.
+            // If it's a directory, keep it (empty dirs handled later in tree building)
             if is_dir {
                 return true;
             }
@@ -160,10 +170,11 @@ pub fn filter_files(
                 return false;
             }
 
-            // If text_only, check extension
-            if options.text_only && !text_detector.is_likely_text(&meta.path) {
+            // If text_only, check if it's a text file
+            if options.text_only && !is_likely_text_file(&meta.path) {
                 return false;
             }
+            
             true
         })
         .map(|meta| meta.path)
@@ -243,7 +254,7 @@ pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, 
     node_keys.sort_by(|a, b| b.len().cmp(&a.len())); // Process deeper paths first
 
     for key in &node_keys {
-        if let Some(mut node) = nodes.remove(key) {
+        if let Some(node) = nodes.remove(key) {
             let parent_path_opt = std::path::Path::new(key).parent()
                 .and_then(|p| p.to_str())
                 .map(normalize_path);

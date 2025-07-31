@@ -187,14 +187,14 @@ function takeFromExternrefTable0(idx) {
 /**
  * @param {any} metadata_js
  * @param {string} gitignore_content
- * @param {string} root_prefix
+ * @param {string} _root_prefix
  * @param {any} options_js
  * @returns {any}
  */
-export function filter_files(metadata_js, gitignore_content, root_prefix, options_js) {
+export function filter_files(metadata_js, gitignore_content, _root_prefix, options_js) {
     const ptr0 = passStringToWasm0(gitignore_content, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(root_prefix, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const ptr1 = passStringToWasm0(_root_prefix, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
     const ret = wasm.filter_files(metadata_js, ptr0, len0, ptr1, len1, options_js);
     if (ret[2]) {
@@ -372,10 +372,6 @@ function __wbg_get_imports() {
         const ret = new Object();
         return ret;
     };
-    imports.wbg.__wbg_new_5e0be73521bc8c17 = function() {
-        const ret = new Map();
-        return ret;
-    };
     imports.wbg.__wbg_new_78feb108b6472713 = function() {
         const ret = new Array();
         return ret;
@@ -409,10 +405,6 @@ function __wbg_get_imports() {
     imports.wbg.__wbg_set_65595bdd868b3009 = function(arg0, arg1, arg2) {
         arg0.set(arg1, arg2 >>> 0);
     };
-    imports.wbg.__wbg_set_8fc6bf8a5b1071d1 = function(arg0, arg1, arg2) {
-        const ret = arg0.set(arg1, arg2);
-        return ret;
-    };
     imports.wbg.__wbg_stack_0ed75d68575b0f3c = function(arg0, arg1) {
         const ret = arg1.stack;
         const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -429,10 +421,6 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbindgen_as_number = function(arg0) {
         const ret = +arg0;
-        return ret;
-    };
-    imports.wbg.__wbindgen_bigint_from_i64 = function(arg0) {
-        const ret = arg0;
         return ret;
     };
     imports.wbg.__wbindgen_bigint_from_u64 = function(arg0) {
@@ -476,10 +464,6 @@ function __wbg_get_imports() {
     imports.wbg.__wbindgen_is_object = function(arg0) {
         const val = arg0;
         const ret = typeof(val) === 'object' && val !== null;
-        return ret;
-    };
-    imports.wbg.__wbindgen_is_string = function(arg0) {
-        const ret = typeof(arg0) === 'string';
         return ret;
     };
     imports.wbg.__wbindgen_is_undefined = function(arg0) {

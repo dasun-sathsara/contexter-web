@@ -50,12 +50,6 @@ pub fn log_message(level: &str, message: &str) {
     }
 }
 
-/// Validates that content is likely text by checking for null bytes.
-/// A simple but effective heuristic for distinguishing text from binary files.
-pub fn is_valid_text_content(content: &[u8]) -> bool {
-    !content.contains(&0)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -73,12 +67,5 @@ mod tests {
         assert_eq!(extract_file_name("src/components/"), "components");
         assert_eq!(extract_file_name("file.txt"), "file.txt");
         assert_eq!(extract_file_name("/"), "/");
-    }
-
-    #[test]
-    fn test_is_valid_text_content() {
-        assert!(is_valid_text_content("Hello, world!".as_bytes()));
-        assert!(is_valid_text_content("".as_bytes()));
-        assert!(!is_valid_text_content(&[0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x00, 0x77, 0x6f, 0x72, 0x6c, 0x64]));
     }
 }

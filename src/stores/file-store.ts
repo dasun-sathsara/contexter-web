@@ -130,19 +130,15 @@ export const useFileStore = create<FileState>()(
 
                     switch (type) {
                         case 'filter-complete': {
-                            console.log('[Store] Filter complete, received:', payload);
                             if (payload && Array.isArray(payload.paths) && payload.paths.length > 0) {
-                                console.log('[Store] Found', payload.paths.length, 'files to read');
                                 _readAndProcessFiles(payload.paths);
                             } else {
-                                console.log('[Store] No files found after filtering');
                                 toast.error("No files found to process.");
                                 set({ isLoading: false, statusMessage: 'Error: No files found to process.' });
                             }
                             break;
                         }
                         case 'processing-complete': {
-                            console.log('[Store] Processing complete, received:', payload);
                             const result = payload as ProcessingResult;
                             const fileMap = new Map<string, FileNode>();
                             const traverse = (nodes: FileNode[]) => {
@@ -152,8 +148,6 @@ export const useFileStore = create<FileState>()(
                                 }
                             };
                             traverse(result.file_tree);
-                            console.log('[Store] Built file map with', fileMap.size, 'entries');
-                            console.log('[Store] File tree root has', result.file_tree.length, 'items');
 
                             set(state => {
                                 state.fileTree = result.file_tree;
@@ -191,15 +185,12 @@ export const useFileStore = create<FileState>()(
 
                 // --- Actions ---
                 processFiles: async (files: File[]) => {
-                    console.log('[Store] processFiles called with:', files);
                     if (!files || files.length === 0) return;
 
                     set({ isLoading: true, statusMessage: 'Analyzing project structure...', fileTree: [], fileMap: new Map() });
 
                     const filesWithPath = files as FileWithPath[];
-                    console.log('[Store] Files with path:', filesWithPath.length, 'files');
                     const firstPath = filesWithPath[0]?.webkitRelativePath;
-                    console.log('[Store] First file path:', firstPath);
 
                     if (!firstPath) {
                         toast.error("Could not process files.", { description: "The dropped items don't appear to be a folder." });
