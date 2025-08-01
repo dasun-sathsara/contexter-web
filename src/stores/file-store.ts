@@ -41,6 +41,7 @@ interface FileState {
     selectedPaths: Set<string>;
     cursorPath: string | null;
     visualAnchorPath: string | null;
+    previewedFilePath: string | null;
 
     processFiles: (files: File[]) => Promise<void>;
     reprocessFiles: () => Promise<void>;
@@ -55,6 +56,8 @@ interface FileState {
     setVisualAnchor: (path: string | null) => void;
     yankToClipboard: (pathsToYank?: Set<string>) => void;
     deleteSelected: (pathsToDelete?: Set<string>) => void;
+    openPreview: (path: string) => void;
+    closePreview: () => void;
 }
 
 const defaultSettings: Settings = {
@@ -185,6 +188,7 @@ export const useFileStore = create<FileState>()(
                 isLoading: false, statusMessage: 'Ready. Drop a folder to get started.',
                 settings: defaultSettings, currentFolderPath: null, navigationStack: [],
                 vimMode: 'normal', selectedPaths: new Set(), cursorPath: null, visualAnchorPath: null,
+                previewedFilePath: null,
 
                 processFiles: async (files: File[]) => {
                     if (!files || files.length === 0) return;
@@ -237,6 +241,7 @@ export const useFileStore = create<FileState>()(
                         isLoading: false, statusMessage: 'Ready. Drop a folder to get started.',
                         currentFolderPath: null, navigationStack: [], selectedPaths: new Set(),
                         cursorPath: null, vimMode: 'normal', visualAnchorPath: null,
+                        previewedFilePath: null,
                     });
                     toast.info("Project cleared.");
                 },
@@ -246,12 +251,8 @@ export const useFileStore = create<FileState>()(
                         set(state => {
                             state.navigationStack.push(state.currentFolderPath || 'root');
                             state.currentFolderPath = path;
-
-                            // Find the first folder or file in the new directory
                             const currentFolder = state.fileMap.get(path);
                             const children = currentFolder?.children || [];
-
-                            // Set cursor to the first child item, or fallback to '..' if no children
                             state.cursorPath = children.length > 0 ? children[0].path : '..';
                         });
                     }
@@ -387,6 +388,16 @@ export const useFileStore = create<FileState>()(
                         });
                     }
                 },
+
+                openPreview: (path) => {
+                    const node = get().fileMap.get(path);
+                    if (node && !node.is_dir && get().rootFiles.has(path)) {
+                        set({ previewedFilePath: path });
+                    } else {
+                        toast.error("Cannot preview file", { description: "File content not available or it's a directory." });
+                    }
+                },
+                closePreview: () => set({ previewedFilePath: null }),
             };
         }),
         {

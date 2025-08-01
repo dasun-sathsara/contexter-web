@@ -9,6 +9,7 @@ import { useFileStore } from '@/stores/file-store';
 import { useVimBindings } from '@/hooks/use-vim-bindings';
 import { FileNode } from '@/lib/types';
 import { LoadingOverlay } from '@/components/loading-overlay';
+import { FilePreviewModal } from '@/components/file-preview-modal';
 
 export default function HomePage() {
     useVimBindings();
@@ -51,6 +52,7 @@ export default function HomePage() {
                 </ResizablePanelGroup>
             </main>
             <StatusBar />
+            <FilePreviewModal />
         </div>
     );
 }

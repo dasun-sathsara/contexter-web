@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useFileStore } from '@/stores/file-store';
 import { FileNode } from '@/lib/types';
+import { toast } from 'sonner';
 
 /**
  * Implements Vim-style keyboard navigation for the file tree.
@@ -46,10 +47,28 @@ export const useVimBindings = () => {
             }
 
             const store = storeRef.current;
+
+            if (store.previewedFilePath) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    store.closePreview();
+                } else if (e.key === 'y') {
+                    e.preventDefault();
+                    const content = store.rootFiles.get(store.previewedFilePath);
+                    if (content) {
+                        navigator.clipboard.writeText(content)
+                            .then(() => toast.success("File content copied to clipboard!"))
+                            .catch(() => toast.error("Failed to copy content."));
+                    }
+                }
+                // Allow scrolling keys, but block other vim bindings from firing
+                return;
+            }
+
             const view = getCurrentView();
             if (view.length === 0 && !['Escape', 'C'].includes(e.key)) return;
 
-            const isHandledKey = /^[jkhlGgvVydC ]|Enter|Escape|Arrow/.test(e.key);
+            const isHandledKey = /^[jkhlGgvVydCo ]|Enter|Escape|Arrow/.test(e.key);
             if (isHandledKey) e.preventDefault();
 
             const moveCursor = (delta: number) => {
@@ -92,6 +111,14 @@ export const useVimBindings = () => {
                     case 'h': case 'ArrowLeft': store.navigateBack(); break;
                     case 'l': case 'ArrowRight': case 'Enter':
                         if (store.cursorPath) store.navigateInto(store.cursorPath);
+                        break;
+                    case 'o':
+                        if (store.cursorPath) {
+                            const node = store.fileMap.get(store.cursorPath);
+                            if (node && !node.is_dir) {
+                                store.openPreview(store.cursorPath);
+                            }
+                        }
                         break;
                     case 'g': if (!e.repeat) goTo('first'); break;
                     case 'G': goTo('last'); break;
