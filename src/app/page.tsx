@@ -28,20 +28,17 @@ export default function HomePage() {
                     <ResizablePanel defaultSize={100}>
                         <div className="h-full flex flex-col p-6 transition-colors duration-300">
                             <div className="flex-grow min-h-0 relative">
-                                {/* Show DropZone when no files are loaded */}
                                 {showDropZone && <DropZone />}
-                                
-                                {/* Show FileTree when files are loaded */}
+
                                 {showFileTree && (
                                     <div className={`h-full transition-opacity duration-500 ${showLoadingTransition ? 'opacity-0' : 'opacity-100'}`}>
                                         <FileTree items={currentView} />
                                     </div>
                                 )}
-                                
-                                {/* Show loading overlay during initial file processing when transitioning from DropZone */}
+
                                 {showLoadingTransition && (
                                     <div className="h-full flex items-center justify-center">
-                                        <LoadingOverlay 
+                                        <LoadingOverlay
                                             message={statusMessage || 'Processing files...'}
                                             subMessage="Building file structure"
                                             className="relative bg-transparent backdrop-blur-none"
@@ -51,17 +48,6 @@ export default function HomePage() {
                             </div>
                         </div>
                     </ResizablePanel>
-                    {/* Future panel for code preview if needed
-          <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={50}>
-            <div className="h-full p-4">
-              <h2 className="text-lg font-semibold mb-2">Code Preview</h2>
-              <div className="w-full h-[calc(100%-2rem)] bg-muted rounded-md p-2">
-                Select a file to preview
-              </div>
-            </div>
-          </ResizablePanel>
-          */}
                 </ResizablePanelGroup>
             </main>
             <StatusBar />

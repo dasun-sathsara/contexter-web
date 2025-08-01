@@ -1,34 +1,19 @@
-//! Utility functions for the Contexter WASM module.
-//!
-//! This module provides common helpers for error handling, path manipulation,
-//! and text content validation, ensuring consistent and reliable operations
-//! throughout the library.
-
 use wasm_bindgen::prelude::*;
 use path_slash::PathExt;
 use std::path::Path;
 
 /// Sets up a panic hook to forward Rust panics to the browser's console.
-/// This is crucial for debugging, as it provides a clear stack trace.
 pub fn set_panic_hook() {
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
 }
 
 /// Normalizes a path string by converting backslashes to forward slashes.
-/// This ensures consistent path representation across different platforms.
-///
-/// # Example
-/// `C:\\Users\\Test` becomes `C:/Users/Test`
 pub fn normalize_path(path: &str) -> String {
     Path::new(path).to_slash_lossy().to_string()
 }
 
 /// Extracts the final component (file or directory name) from a path string.
-/// Returns "unknown" if the path is empty or invalid.
-///
-/// # Example
-/// `src/components/Button.tsx` becomes `Button.tsx`
 pub fn extract_file_name(path: &str) -> String {
     Path::new(path)
         .file_name()

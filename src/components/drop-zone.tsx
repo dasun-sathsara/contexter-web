@@ -52,7 +52,6 @@ export function DropZone() {
                 onChange={handleFolderSelect}
             />
 
-            {/* Loading overlay */}
             {isLoading && (
                 <LoadingOverlay
                     message={statusMessage || 'Processing files...'}

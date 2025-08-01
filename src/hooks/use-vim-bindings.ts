@@ -4,8 +4,6 @@ import { FileNode } from '@/lib/types';
 
 /**
  * Implements Vim-style keyboard navigation for the file tree.
- * - Uses a ref to the Zustand store state to avoid re-binding the global event listener.
- * - Handles Normal and Visual modes for selection and actions.
  */
 export const useVimBindings = () => {
     const storeRef = useRef(useFileStore.getState());
@@ -54,7 +52,6 @@ export const useVimBindings = () => {
             const isHandledKey = /^[jkhlGgvVydC ]|Enter|Escape|Arrow/.test(e.key);
             if (isHandledKey) e.preventDefault();
 
-            // --- Reusable Actions ---
             const moveCursor = (delta: number) => {
                 const currentIndex = store.cursorPath ? view.findIndex(item => item.path === store.cursorPath) : -1;
                 const newIndex = Math.max(0, Math.min(view.length - 1, (currentIndex === -1 ? 0 : currentIndex) + delta));
@@ -88,7 +85,6 @@ export const useVimBindings = () => {
                 exitVisualMode();
             };
 
-            // --- Mode-based Command Handling ---
             if (store.vimMode === 'normal') {
                 switch (e.key) {
                     case 'j': case 'ArrowDown': moveCursor(1); break;
@@ -123,5 +119,5 @@ export const useVimBindings = () => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [getCurrentView, updateVisualSelection]); // Callbacks are stable.
+    }, [getCurrentView, updateVisualSelection]);
 };

@@ -13,7 +13,6 @@ export function StatusBar() {
     return (
         <footer className="flex items-center justify-between p-4 border-t bg-muted/20 text-xs transition-colors duration-300">
             <div className="flex items-center gap-4">
-                {/* Minimal Vim Mode Indicator */}
                 <div className="flex items-center gap-2">
                     <Command className="h-3 w-3 text-muted-foreground transition-colors duration-300" />
                     <span
@@ -30,7 +29,6 @@ export function StatusBar() {
 
                 <Separator orientation="vertical" className="h-3" />
 
-                {/* Status Message */}
                 <div className="flex items-center gap-2">
                     <Info className="h-3 w-3 text-muted-foreground transition-colors duration-300" />
                     <span className="text-muted-foreground transition-colors duration-300">{statusMessage}</span>
@@ -38,7 +36,6 @@ export function StatusBar() {
             </div>
 
             <div className="flex items-center gap-4">
-                {/* Selection Count */}
                 {selectionText && (
                     <>
                         <div className="flex items-center gap-2">
@@ -51,7 +48,6 @@ export function StatusBar() {
                     </>
                 )}
 
-                {/* Minimal Vim Keybindings Help */}
                 <div className="flex items-center gap-3 text-muted-foreground/70 transition-colors duration-300">
                     <Zap className="h-3 w-3 transition-colors duration-300" />
                     <div className="flex items-center gap-2">

@@ -8,13 +8,10 @@ use crate::utils::{extract_file_name, normalize_path, set_panic_hook};
 
 mod utils;
 
-// Use a thread-safe, one-time initialization for the BPE encoder.
 static TIKTOKEN_ENCODER: OnceLock<CoreBPE> = OnceLock::new();
 fn get_encoder() -> &'static CoreBPE {
     TIKTOKEN_ENCODER.get_or_init(|| cl100k_base().expect("Failed to initialize tiktoken encoder"))
 }
-
-// --- Data Structures ---
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FileInput {
@@ -65,7 +62,7 @@ pub struct FilterOptions {
     pub max_file_size: u32,
 }
 fn default_true() -> bool { true }
-fn default_max_file_size() -> u32 { 2 * 1024 * 1024 } // 2MB
+fn default_max_file_size() -> u32 { 2 * 1024 * 1024 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ProcessingOptions {
@@ -81,8 +78,6 @@ pub struct MarkdownOptions {
     pub include_path_headers: bool,
 }
 
-// --- Filtering Logic ---
-
 static TEXT_EXTENSIONS: &[&str] = &[
     "js", "ts", "tsx", "jsx", "json", "md", "mdx", "html", "css", "scss", "sass", "less", "styl", "postcss",
     "py", "pyi", "rb", "php", "sh", "bash", "zsh", "ps1", "bat", "cmd", "rs", "go", "java", "c", "cpp", "h", "hpp", "cs",
@@ -94,14 +89,12 @@ static TEXT_EXTENSIONS: &[&str] = &[
 static SPECIAL_FILENAMES: &[&str] = &["dockerfile", "makefile", "license", "readme"];
 
 fn is_likely_text_file(path: &str) -> bool {
-    // Check extension
     if let Some(extension) = path.rsplit('.').next() {
         if TEXT_EXTENSIONS.contains(&extension.to_lowercase().as_str()) {
             return true;
         }
     }
     
-    // Check special filenames without extensions
     if let Some(filename) = path.rsplit('/').next() {
         return SPECIAL_FILENAMES.contains(&filename.to_lowercase().as_str());
     }
@@ -113,7 +106,7 @@ fn is_likely_text_file(path: &str) -> bool {
 pub fn filter_files(
     metadata_js: JsValue,
     gitignore_content: String,
-    _root_prefix: String, // Keep for API compatibility but don't use
+    _root_prefix: String,
     options_js: JsValue,
 ) -> Result<JsValue, JsValue> {
     set_panic_hook();
@@ -123,11 +116,9 @@ pub fn filter_files(
         .map_err(|e| JsValue::from_str(&format!("Failed to parse metadata: {}", e)))?;
     let options: FilterOptions = serde_wasm_bindgen::from_value(options_js).unwrap_or_default();
 
-    // Build gitignore patterns from .gitignore content, skipping blank lines and comments
     let mut gitignore_builder = GitignoreBuilder::new(".");
     for (idx, raw_line) in gitignore_content.lines().enumerate() {
         let line = raw_line.trim();
-        // Skip empty and comment lines
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
@@ -142,48 +133,34 @@ pub fn filter_files(
     let kept_paths: Vec<String> = metadata
         .into_iter()
         .filter_map(|meta| {
-            // Browser-provided paths for files don't have a trailing slash.
-            // We assume anything without a slash is a file. We don't get directory entries from the browser.
             let is_dir = meta.path.ends_with('/');
             
-            // Strip the root folder name to get paths relative to the project root,
-            // which is where the .gitignore rules apply.
-            // e.g., "my-project/src/main.js" -> "src/main.js"
             let relative_path = if let Some(first_slash) = meta.path.find('/') {
                 &meta.path[first_slash + 1..]
             } else {
                 &meta.path
             };
             
-            // If the relative path is empty (e.g. it was just the root folder), we can't process it.
             if relative_path.is_empty() {
                 return None;
             }
             
-            // Apply gitignore rules.
-            // **FIX**: Use `matched_path_or_any_parents` because we are checking individual flat
-            // paths, not walking a directory tree. This ensures that a rule like "var/"
-            // correctly ignores a file like "var/pakaya.txt" by checking its parent components.
             if gitignore.matched_path_or_any_parents(relative_path, is_dir).is_ignore() {
                 return None;
             }
 
-            // If it's a directory, it passed the gitignore check, so keep it.
             if is_dir {
                 return Some(meta.path);
             }
             
-            // Check file size limit
             if meta.size > options.max_file_size {
                 return None;
             }
 
-            // If text_only, check if it's a text file based on extension/name
             if options.text_only && !is_likely_text_file(relative_path) {
                 return None;
             }
             
-            // If all checks pass, keep the original full path to be read later.
             Some(meta.path)
         })
         .collect();
@@ -197,9 +174,6 @@ pub fn filter_files(
     serde_wasm_bindgen::to_value(&result)
         .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {}", e)))
 }
-
-
-// --- Tree Processing Logic ---
 
 #[wasm_bindgen]
 pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, JsValue> {
@@ -226,7 +200,6 @@ pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, 
         };
         total_tokens += tokens;
 
-        // Insert the file node
         nodes.insert(path.clone(), FileNode {
             path: path.clone(),
             name: extract_file_name(&path),
@@ -236,7 +209,6 @@ pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, 
             size: Some(size),
         });
 
-        // Ensure all parent directories exist
         let mut parent_path = std::path::Path::new(&path).parent();
         while let Some(p) = parent_path {
             if p.to_str().unwrap_or("").is_empty() { break; }
@@ -254,10 +226,9 @@ pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, 
         }
     }
 
-    // Assemble the tree structure
     let mut root_nodes: Vec<FileNode> = Vec::new();
     let mut node_keys: Vec<String> = nodes.keys().cloned().collect();
-    node_keys.sort_by(|a, b| b.len().cmp(&a.len())); // Process deeper paths first
+    node_keys.sort_by(|a, b| b.len().cmp(&a.len()));
 
     for key in &node_keys {
         if let Some(node) = nodes.remove(key) {
@@ -281,7 +252,6 @@ pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, 
         }
     }
     
-    // Sort and optionally hide empty folders
     fn finalise_tree(nodes: &mut Vec<FileNode>, options: &ProcessingOptions) {
         if options.hide_empty_folders {
             nodes.retain(|node| !node.is_dir || !node.children.is_empty());
@@ -289,7 +259,7 @@ pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, 
         
         nodes.sort_by(|a, b| {
             if a.is_dir != b.is_dir {
-                b.is_dir.cmp(&a.is_dir) // Directories first
+                b.is_dir.cmp(&a.is_dir)
             } else {
                 a.name.to_lowercase().cmp(&b.name.to_lowercase())
             }
@@ -316,33 +286,24 @@ pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, 
         .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {}", e)))
 }
 
-
-// --- Count Recalculation ---
-
-/// Recursively traverses a node, calculating and updating its total size and token count
-/// based on its children. Returns a tuple of (total_size, total_tokens).
+/// Recursively updates counts for a node based on its children.
 fn recursively_update_counts(node: &mut FileNode, show_token_count: bool) -> (u64, Option<u32>) {
-    // If it's a file, its counts are authoritative. Return them.
     if !node.is_dir {
         return (node.size.unwrap_or(0), node.token_count);
     }
 
-    // If it's a directory, initialize counters.
     let mut total_size: u64 = 0;
     let mut total_tokens: Option<u32> = if show_token_count { Some(0) } else { None };
 
-    // Recursively call on children and aggregate their counts.
     for child in &mut node.children {
         let (child_size, child_tokens) = recursively_update_counts(child, show_token_count);
         total_size += child_size;
         
-        // Add child tokens to parent's total if tracking tokens.
         if let (Some(tokens), Some(child_t)) = (total_tokens.as_mut(), child_tokens) {
             *tokens += child_t;
         }
     }
 
-    // Update the current node's counts with the aggregated values.
     node.size = Some(total_size);
     node.token_count = total_tokens;
 
@@ -353,24 +314,18 @@ fn recursively_update_counts(node: &mut FileNode, show_token_count: bool) -> (u6
 pub fn recalculate_counts(tree_js: JsValue, options_js: JsValue) -> Result<JsValue, JsValue> {
     set_panic_hook();
     
-    // Deserialize the file tree and options from JavaScript.
     let mut tree: Vec<FileNode> = serde_wasm_bindgen::from_value(tree_js)
         .map_err(|e| JsValue::from_str(&format!("Failed to parse file tree: {}", e)))?;
     let options: ProcessingOptions = serde_wasm_bindgen::from_value(options_js)
         .unwrap_or_else(|_| ProcessingOptions::default());
 
-    // Iterate over root nodes and start the recursive update.
     for node in &mut tree {
         recursively_update_counts(node, options.show_token_count);
     }
 
-    // Serialize the updated tree back to a JavaScript value.
     serde_wasm_bindgen::to_value(&tree)
         .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {}", e)))
 }
-
-
-// --- Markdown Generation ---
 
 #[wasm_bindgen]
 pub fn merge_files_to_markdown(files_js: JsValue, options_js: JsValue) -> Result<String, JsValue> {

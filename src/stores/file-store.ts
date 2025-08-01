@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 
 enableMapSet();
 
-// A non-standard property provided by browsers for directory uploads.
 type FileWithPath = File & { webkitRelativePath: string };
 
 // --- Worker Management ---
@@ -16,43 +15,33 @@ let worker: Worker | null = null;
 const getWorker = (): Worker | null => {
     if (typeof window === 'undefined') return null;
     if (!worker) {
-        // The `new URL(...)` syntax is the modern, standard way to instantiate workers.
         worker = new Worker(new URL('../workers/file-processor.worker.ts', import.meta.url));
     }
     return worker;
 };
 
 /**
- * A module-level variable to hold the array of File objects between the
- * initial filtering and the file reading steps. This avoids passing the full
- * File list to/from the worker, improving performance.
+ * Module-level variable to hold File objects between filtering and reading steps.
+ * This avoids passing the full File list to/from the worker.
  */
 let pendingFiles: FileWithPath[] | null = null;
 
 // --- Store Definition ---
 
 interface FileState {
-    // Core Data
     fileTree: FileNode[];
     fileMap: Map<string, FileNode>;
-    rootFiles: Map<string, string>; // Maps file path to its content
-
-    // UI & Processing State
+    rootFiles: Map<string, string>;
     isLoading: boolean;
     statusMessage: string;
     settings: Settings;
-
-    // Navigation
     currentFolderPath: string | null;
     navigationStack: string[];
-
-    // Selection & Vim
     vimMode: VimMode;
     selectedPaths: Set<string>;
     cursorPath: string | null;
     visualAnchorPath: string | null;
 
-    // Actions
     processFiles: (files: File[]) => Promise<void>;
     reprocessFiles: () => Promise<void>;
     setSettings: (newSettings: Partial<Settings>) => void;
@@ -71,13 +60,12 @@ interface FileState {
 const defaultSettings: Settings = {
     hideEmptyFolders: true,
     showTokenCount: true,
-    maxFileSize: 2 * 1024 * 1024, // 2MB
+    maxFileSize: 2 * 1024 * 1024,
 };
 
 export const useFileStore = create<FileState>()(
     persist(
         immer((set, get) => {
-            // Internal helper to read file contents after filtering.
             const _readAndProcessFiles = async (pathsToRead: string[]) => {
 
                 if (!pendingFiles) {
@@ -101,8 +89,7 @@ export const useFileStore = create<FileState>()(
                     if (file) {
                         try {
                             const content = await file.text();
-                            // Basic check for binary files.
-                            if (!content.includes('\uFFFD')) { // REPLACEMENT CHARACTER
+                            if (!content.includes('\uFFFD')) {
                                 fileInputs.push({ path, content });
                                 rootFileContents.set(path, content);
                             }
@@ -114,7 +101,7 @@ export const useFileStore = create<FileState>()(
 
                 await Promise.all(readPromises);
                 set({ rootFiles: rootFileContents, statusMessage: `Processing ${fileInputs.length} text files...` });
-                pendingFiles = null; // Clean up temporary state
+                pendingFiles = null;
 
                 getWorker()?.postMessage({
                     type: 'process-files',
@@ -122,7 +109,6 @@ export const useFileStore = create<FileState>()(
                 });
             };
 
-            // Setup worker listeners once when the store is created.
             const workerInstance = getWorker();
             if (workerInstance) {
                 workerInstance.onmessage = (event: MessageEvent) => {
@@ -130,11 +116,6 @@ export const useFileStore = create<FileState>()(
 
                     switch (type) {
                         case 'filter-complete': {
-                            // LOG 2: Show filtered paths received from worker
-                            if (payload && Array.isArray(payload.paths)) {
-                                console.log('✅ FILTERED PATHS FROM WORKER:', payload.paths);
-                            }
-
                             if (payload && Array.isArray(payload.paths) && payload.paths.length > 0) {
                                 _readAndProcessFiles(payload.paths);
                             } else {
@@ -200,13 +181,11 @@ export const useFileStore = create<FileState>()(
             }
 
             return {
-                // --- Initial State ---
                 fileTree: [], fileMap: new Map(), rootFiles: new Map(),
                 isLoading: false, statusMessage: 'Ready. Drop a folder to get started.',
                 settings: defaultSettings, currentFolderPath: null, navigationStack: [],
                 vimMode: 'normal', selectedPaths: new Set(), cursorPath: null, visualAnchorPath: null,
 
-                // --- Actions ---
                 processFiles: async (files: File[]) => {
                     if (!files || files.length === 0) return;
 
@@ -228,9 +207,6 @@ export const useFileStore = create<FileState>()(
                     const rootPrefix = firstPath.substring(0, firstPath.indexOf('/') + 1);
 
                     const metadata: FileMetadata[] = filesWithPath.map((f) => ({ path: f.webkitRelativePath, size: f.size }));
-
-                    // LOG 1: Show all paths being sent to worker for filtering
-                    console.log('🔍 PATHS SENT TO WORKER:', metadata.map(m => m.path));
 
                     getWorker()?.postMessage({
                         type: 'filter-files',
@@ -270,7 +246,7 @@ export const useFileStore = create<FileState>()(
                         set(state => {
                             state.navigationStack.push(state.currentFolderPath || 'root');
                             state.currentFolderPath = path;
-                            state.cursorPath = '..'; // For intuitive navigation
+                            state.cursorPath = '..';
                         });
                     }
                 },
@@ -281,7 +257,7 @@ export const useFileStore = create<FileState>()(
                             const previousPath = state.currentFolderPath;
                             const newCurrent = state.navigationStack.pop()!;
                             state.currentFolderPath = newCurrent === 'root' ? null : newCurrent;
-                            state.cursorPath = previousPath; // Set cursor on the folder we left
+                            state.cursorPath = previousPath;
                         });
                     }
                 },
@@ -337,9 +313,7 @@ export const useFileStore = create<FileState>()(
                     const paths = pathsToDelete || get().selectedPaths;
                     if (paths.size === 0) return;
 
-                    // A. Perform synchronous update for instant UI feedback & to set "loading" state
                     set(state => {
-                        // 1. Recursively find all paths to delete, including children of selected folders
                         const allPathsToDelete = new Set<string>();
                         const collectPaths = (path: string) => {
                             if (allPathsToDelete.has(path)) return;
@@ -352,7 +326,6 @@ export const useFileStore = create<FileState>()(
                         };
                         paths.forEach(p => collectPaths(p));
 
-                        // 2. Smart cursor placement before modifying the tree
                         const view = state.currentFolderPath
                             ? state.fileMap.get(state.currentFolderPath)?.children ?? []
                             : state.fileTree;
@@ -362,12 +335,10 @@ export const useFileStore = create<FileState>()(
                             ? remaining[Math.min(cursorIdx, remaining.length - 1)].path
                             : (state.currentFolderPath ? '..' : null);
 
-                        // 3. Remove content of deleted files from rootFiles map
                         allPathsToDelete.forEach(path => {
                             state.rootFiles.delete(path);
                         });
 
-                        // 4. Rebuild the fileTree, filtering nodes and nullifying dir counts for "loading" state
                         const filterAndResetTree = (nodes: FileNode[]): FileNode[] => {
                             return nodes
                                 .filter(n => !allPathsToDelete.has(n.path))
@@ -375,8 +346,6 @@ export const useFileStore = create<FileState>()(
                                     const children = n.is_dir ? filterAndResetTree(n.children) : [];
                                     return {
                                         ...n,
-                                        // For directories, nullify counts to indicate recalculation is needed.
-                                        // This will act as the "loading" state in the UI.
                                         token_count: n.is_dir ? undefined : n.token_count,
                                         size: n.is_dir ? undefined : n.size,
                                         children,
@@ -385,7 +354,6 @@ export const useFileStore = create<FileState>()(
                         };
                         state.fileTree = filterAndResetTree(state.fileTree);
 
-                        // 5. Rebuild the fileMap from the new, clean tree
                         const newFileMap = new Map<string, FileNode>();
                         const traverseAndPopulateMap = (nodes: FileNode[]) => {
                             for (const node of nodes) {
@@ -398,7 +366,6 @@ export const useFileStore = create<FileState>()(
                         traverseAndPopulateMap(state.fileTree);
                         state.fileMap = newFileMap;
 
-                        // 6. Clean up selection state and notify user
                         state.selectedPaths.clear();
                         state.vimMode = 'normal';
                         state.visualAnchorPath = null;
@@ -406,7 +373,6 @@ export const useFileStore = create<FileState>()(
                         toast.success(`Deleted ${allPathsToDelete.size} items.`);
                     });
 
-                    // B. Trigger asynchronous recount in the worker
                     const { fileTree, settings } = get();
                     if (fileTree.length > 0) {
                         getWorker()?.postMessage({
@@ -418,7 +384,7 @@ export const useFileStore = create<FileState>()(
             };
         }),
         {
-            name: 'contexter-file-store-v2', // Changed name to avoid conflicts with old state
+            name: 'contexter-file-store-v2',
             storage: createJSONStorage(() => localStorage),
             partialize: (state) => ({ settings: state.settings }),
         }

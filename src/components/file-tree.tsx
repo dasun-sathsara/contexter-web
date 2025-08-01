@@ -34,7 +34,6 @@ export function FileTree({ items }: FileTreeProps) {
 
     return (
         <div className="h-full flex flex-col bg-card rounded-lg border border-border/50 overflow-hidden shadow-sm transition-colors duration-300">
-            {/* Header */}
             <div className="flex items-center gap-3 p-5 border-b border-border/50 bg-gradient-to-r from-card to-muted/10 transition-colors duration-300">
                 <FolderTree className="h-5 w-5 text-primary/80 transition-colors duration-300" />
                 <h3 className="font-semibold text-sm text-foreground transition-colors duration-300">
@@ -47,11 +46,9 @@ export function FileTree({ items }: FileTreeProps) {
                 </div>
             </div>
 
-            {/* Content Area */}
             <ScrollArea className="flex-grow">
                 <div className="p-4">
                     <div className="space-y-1">
-                        {/* Back navigation */}
                         {currentFolderPath && (
                             <div className="mb-3">
                                 <FileTreeItem
@@ -61,7 +58,6 @@ export function FileTree({ items }: FileTreeProps) {
                             </div>
                         )}
 
-                        {/* Empty state */}
                         {items.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground transition-colors duration-300">
                                 <FileIcon className="h-20 w-20 opacity-20 mb-4 transition-colors duration-300" />
