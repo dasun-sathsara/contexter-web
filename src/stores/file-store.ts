@@ -246,7 +246,13 @@ export const useFileStore = create<FileState>()(
                         set(state => {
                             state.navigationStack.push(state.currentFolderPath || 'root');
                             state.currentFolderPath = path;
-                            state.cursorPath = '..';
+
+                            // Find the first folder or file in the new directory
+                            const currentFolder = state.fileMap.get(path);
+                            const children = currentFolder?.children || [];
+
+                            // Set cursor to the first child item, or fallback to '..' if no children
+                            state.cursorPath = children.length > 0 ? children[0].path : '..';
                         });
                     }
                 },
