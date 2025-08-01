@@ -172,6 +172,24 @@ export const useFileStore = create<FileState>()(
                                 .catch(() => toast.error("Failed to copy to clipboard."));
                             break;
                         }
+                        case 'recalculation-complete': {
+                            const { fileTree: recalculatedTree } = payload;
+                            const newFileMap = new Map<string, FileNode>();
+                            const traverse = (nodes: FileNode[]) => {
+                                for (const node of nodes) {
+                                    newFileMap.set(node.path, node);
+                                    if (node.children?.length > 0) traverse(node.children);
+                                }
+                            };
+                            traverse(recalculatedTree);
+
+                            set({
+                                fileTree: recalculatedTree,
+                                fileMap: newFileMap,
+                                statusMessage: 'Project totals updated.',
+                            });
+                            break;
+                        }
                         case 'processing-error': {
                             set({ isLoading: false, statusMessage: `Error: ${payload}` });
                             toast.error("An error occurred during processing.", { description: payload });
@@ -319,8 +337,9 @@ export const useFileStore = create<FileState>()(
                     const paths = pathsToDelete || get().selectedPaths;
                     if (paths.size === 0) return;
 
+                    // A. Perform synchronous update for instant UI feedback & to set "loading" state
                     set(state => {
-                        // 1. Recursively find all paths to delete
+                        // 1. Recursively find all paths to delete, including children of selected folders
                         const allPathsToDelete = new Set<string>();
                         const collectPaths = (path: string) => {
                             if (allPathsToDelete.has(path)) return;
@@ -348,18 +367,25 @@ export const useFileStore = create<FileState>()(
                             state.rootFiles.delete(path);
                         });
 
-                        // 4. Rebuild the fileTree structure, filtering out deleted nodes
-                        const filterTree = (nodes: FileNode[]): FileNode[] => {
+                        // 4. Rebuild the fileTree, filtering nodes and nullifying dir counts for "loading" state
+                        const filterAndResetTree = (nodes: FileNode[]): FileNode[] => {
                             return nodes
                                 .filter(n => !allPathsToDelete.has(n.path))
-                                .map(n => ({
-                                    ...n,
-                                    children: n.is_dir ? filterTree(n.children) : [],
-                                }));
+                                .map(n => {
+                                    const children = n.is_dir ? filterAndResetTree(n.children) : [];
+                                    return {
+                                        ...n,
+                                        // For directories, nullify counts to indicate recalculation is needed.
+                                        // This will act as the "loading" state in the UI.
+                                        token_count: n.is_dir ? undefined : n.token_count,
+                                        size: n.is_dir ? undefined : n.size,
+                                        children,
+                                    };
+                                });
                         };
-                        state.fileTree = filterTree(state.fileTree);
+                        state.fileTree = filterAndResetTree(state.fileTree);
 
-                        // 5. Rebuild the fileMap from the new, clean tree to ensure consistency
+                        // 5. Rebuild the fileMap from the new, clean tree
                         const newFileMap = new Map<string, FileNode>();
                         const traverseAndPopulateMap = (nodes: FileNode[]) => {
                             for (const node of nodes) {
@@ -376,9 +402,18 @@ export const useFileStore = create<FileState>()(
                         state.selectedPaths.clear();
                         state.vimMode = 'normal';
                         state.visualAnchorPath = null;
-                        state.statusMessage = `Deleted ${allPathsToDelete.size} items.`;
+                        state.statusMessage = `Deleted ${allPathsToDelete.size} items. Recalculating totals...`;
                         toast.success(`Deleted ${allPathsToDelete.size} items.`);
                     });
+
+                    // B. Trigger asynchronous recount in the worker
+                    const { fileTree, settings } = get();
+                    if (fileTree.length > 0) {
+                        getWorker()?.postMessage({
+                            type: 'recalculate-counts',
+                            payload: { fileTree, settings }
+                        });
+                    }
                 },
             };
         }),

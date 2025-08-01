@@ -2,13 +2,14 @@
 // We import the init function and all wasm-bindgen exports from the JS glue code.
 import init, * as WasmModule from '@/wasm-module/contexter_wasm.js';
 
-import type { FileInput, FilterOptions, MarkdownOptions, ProcessingOptions, ProcessingResult, FileMetadata } from '@/lib/types';
+import type { FileNode, FileInput, FilterOptions, MarkdownOptions, ProcessingOptions, ProcessingResult, FileMetadata } from '@/lib/types';
 
 // A type-safe interface for the WASM module's exports.
 type WasmApi = {
     filter_files(metadata: FileMetadata[], gitignoreContent: string, rootPrefix: string, options: FilterOptions): { paths: string[]; processingTimeMs: number };
     process_files(files: FileInput[], options: ProcessingOptions): ProcessingResult;
     merge_files_to_markdown(files: FileInput[], options: MarkdownOptions): string;
+    recalculate_counts(tree: FileNode[], options: ProcessingOptions): FileNode[];
 };
 
 // --- WASM Initialization ---
@@ -51,6 +52,13 @@ self.onmessage = async (event: MessageEvent) => {
             case 'merge-files': {
                 const result = wasm.merge_files_to_markdown(payload.files, payload.options);
                 self.postMessage({ type: 'markdown-result', payload: result });
+                break;
+            }
+            case 'recalculate-counts': {
+                const { fileTree, settings } = payload;
+                // The settings object from the store is compatible with ProcessingOptions.
+                const result = wasm.recalculate_counts(fileTree, settings);
+                self.postMessage({ type: 'recalculation-complete', payload: { fileTree: result } });
                 break;
             }
         }

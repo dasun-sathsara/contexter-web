@@ -317,6 +317,59 @@ pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, 
 }
 
 
+// --- Count Recalculation ---
+
+/// Recursively traverses a node, calculating and updating its total size and token count
+/// based on its children. Returns a tuple of (total_size, total_tokens).
+fn recursively_update_counts(node: &mut FileNode, show_token_count: bool) -> (u64, Option<u32>) {
+    // If it's a file, its counts are authoritative. Return them.
+    if !node.is_dir {
+        return (node.size.unwrap_or(0), node.token_count);
+    }
+
+    // If it's a directory, initialize counters.
+    let mut total_size: u64 = 0;
+    let mut total_tokens: Option<u32> = if show_token_count { Some(0) } else { None };
+
+    // Recursively call on children and aggregate their counts.
+    for child in &mut node.children {
+        let (child_size, child_tokens) = recursively_update_counts(child, show_token_count);
+        total_size += child_size;
+        
+        // Add child tokens to parent's total if tracking tokens.
+        if let (Some(tokens), Some(child_t)) = (total_tokens.as_mut(), child_tokens) {
+            *tokens += child_t;
+        }
+    }
+
+    // Update the current node's counts with the aggregated values.
+    node.size = Some(total_size);
+    node.token_count = total_tokens;
+
+    (total_size, total_tokens)
+}
+
+#[wasm_bindgen]
+pub fn recalculate_counts(tree_js: JsValue, options_js: JsValue) -> Result<JsValue, JsValue> {
+    set_panic_hook();
+    
+    // Deserialize the file tree and options from JavaScript.
+    let mut tree: Vec<FileNode> = serde_wasm_bindgen::from_value(tree_js)
+        .map_err(|e| JsValue::from_str(&format!("Failed to parse file tree: {}", e)))?;
+    let options: ProcessingOptions = serde_wasm_bindgen::from_value(options_js)
+        .unwrap_or_else(|_| ProcessingOptions::default());
+
+    // Iterate over root nodes and start the recursive update.
+    for node in &mut tree {
+        recursively_update_counts(node, options.show_token_count);
+    }
+
+    // Serialize the updated tree back to a JavaScript value.
+    serde_wasm_bindgen::to_value(&tree)
+        .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {}", e)))
+}
+
+
 // --- Markdown Generation ---
 
 #[wasm_bindgen]
