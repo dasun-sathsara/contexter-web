@@ -320,39 +320,62 @@ export const useFileStore = create<FileState>()(
                     if (paths.size === 0) return;
 
                     set(state => {
+                        // 1. Recursively find all paths to delete
                         const allPathsToDelete = new Set<string>();
                         const collectPaths = (path: string) => {
                             if (allPathsToDelete.has(path)) return;
                             const node = state.fileMap.get(path);
                             if (!node) return;
                             allPathsToDelete.add(path);
-                            if (node.is_dir) node.children.forEach(child => collectPaths(child.path));
+                            if (node.is_dir) {
+                                node.children.forEach(child => collectPaths(child.path));
+                            }
                         };
                         paths.forEach(p => collectPaths(p));
 
-                        // Smart cursor placement
-                        const view = state.currentFolderPath ? state.fileMap.get(state.currentFolderPath)?.children ?? [] : state.fileTree;
+                        // 2. Smart cursor placement before modifying the tree
+                        const view = state.currentFolderPath
+                            ? state.fileMap.get(state.currentFolderPath)?.children ?? []
+                            : state.fileTree;
                         const cursorIdx = view.findIndex(item => item.path === state.cursorPath);
                         const remaining = view.filter(item => !allPathsToDelete.has(item.path));
-                        state.cursorPath = remaining.length > 0 ? remaining[Math.min(cursorIdx, remaining.length - 1)].path : (state.currentFolderPath ? '..' : null);
+                        state.cursorPath = remaining.length > 0
+                            ? remaining[Math.min(cursorIdx, remaining.length - 1)].path
+                            : (state.currentFolderPath ? '..' : null);
 
-                        // Mutate state
+                        // 3. Remove content of deleted files from rootFiles map
                         allPathsToDelete.forEach(path => {
-                            state.fileMap.delete(path);
                             state.rootFiles.delete(path);
                         });
 
-                        // Rebuild tree structure. Note: Parent stats will be stale until re-process.
+                        // 4. Rebuild the fileTree structure, filtering out deleted nodes
                         const filterTree = (nodes: FileNode[]): FileNode[] => {
-                            return nodes.filter(n => !allPathsToDelete.has(n.path)).map(n => ({
-                                ...n,
-                                children: n.is_dir ? filterTree(n.children) : [],
-                            }));
+                            return nodes
+                                .filter(n => !allPathsToDelete.has(n.path))
+                                .map(n => ({
+                                    ...n,
+                                    children: n.is_dir ? filterTree(n.children) : [],
+                                }));
                         };
                         state.fileTree = filterTree(state.fileTree);
 
+                        // 5. Rebuild the fileMap from the new, clean tree to ensure consistency
+                        const newFileMap = new Map<string, FileNode>();
+                        const traverseAndPopulateMap = (nodes: FileNode[]) => {
+                            for (const node of nodes) {
+                                newFileMap.set(node.path, node);
+                                if (node.children?.length > 0) {
+                                    traverseAndPopulateMap(node.children);
+                                }
+                            }
+                        };
+                        traverseAndPopulateMap(state.fileTree);
+                        state.fileMap = newFileMap;
+
+                        // 6. Clean up selection state and notify user
                         state.selectedPaths.clear();
                         state.vimMode = 'normal';
+                        state.visualAnchorPath = null;
                         state.statusMessage = `Deleted ${allPathsToDelete.size} items.`;
                         toast.success(`Deleted ${allPathsToDelete.size} items.`);
                     });
