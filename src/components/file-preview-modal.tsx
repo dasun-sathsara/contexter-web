@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, lazy, useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useTheme } from 'next-themes';
 import { useFileStore } from '@/stores/file-store';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -8,7 +8,63 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { File as FileIcon, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const SyntaxHighlighter = lazy(() => import('react-syntax-highlighter'));
+// Use PrismLight for performant syntax highlighting with registered languages
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
+// Register only the required languages
+import jsLang from 'react-syntax-highlighter/dist/esm/languages/prism/javascript';
+import tsLang from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
+import jsxLang from 'react-syntax-highlighter/dist/esm/languages/prism/jsx';
+import tsxLang from 'react-syntax-highlighter/dist/esm/languages/prism/tsx';
+import pythonLang from 'react-syntax-highlighter/dist/esm/languages/prism/python';
+import rustLang from 'react-syntax-highlighter/dist/esm/languages/prism/rust';
+import goLang from 'react-syntax-highlighter/dist/esm/languages/prism/go';
+import bashLang from 'react-syntax-highlighter/dist/esm/languages/prism/bash';
+import javaLang from 'react-syntax-highlighter/dist/esm/languages/prism/java';
+import cLang from 'react-syntax-highlighter/dist/esm/languages/prism/c';
+import cppLang from 'react-syntax-highlighter/dist/esm/languages/prism/cpp';
+import csharpLang from 'react-syntax-highlighter/dist/esm/languages/prism/csharp';
+import phpLang from 'react-syntax-highlighter/dist/esm/languages/prism/php';
+import rubyLang from 'react-syntax-highlighter/dist/esm/languages/prism/ruby';
+import swiftLang from 'react-syntax-highlighter/dist/esm/languages/prism/swift';
+import kotlinLang from 'react-syntax-highlighter/dist/esm/languages/prism/kotlin';
+import htmlLang from 'react-syntax-highlighter/dist/esm/languages/prism/markup';
+import cssLang from 'react-syntax-highlighter/dist/esm/languages/prism/css';
+import scssLang from 'react-syntax-highlighter/dist/esm/languages/prism/scss';
+import lessLang from 'react-syntax-highlighter/dist/esm/languages/prism/less';
+import jsonLang from 'react-syntax-highlighter/dist/esm/languages/prism/json';
+import yamlLang from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
+import markdownLang from 'react-syntax-highlighter/dist/esm/languages/prism/markdown';
+import sqlLang from 'react-syntax-highlighter/dist/esm/languages/prism/sql';
+import tomlLang from 'react-syntax-highlighter/dist/esm/languages/prism/toml';
+
+// Register languages for PrismLight
+SyntaxHighlighter.registerLanguage('javascript', jsLang);
+SyntaxHighlighter.registerLanguage('typescript', tsLang);
+SyntaxHighlighter.registerLanguage('jsx', jsxLang);
+SyntaxHighlighter.registerLanguage('tsx', tsxLang);
+SyntaxHighlighter.registerLanguage('python', pythonLang);
+SyntaxHighlighter.registerLanguage('rust', rustLang);
+SyntaxHighlighter.registerLanguage('go', goLang);
+SyntaxHighlighter.registerLanguage('bash', bashLang);
+SyntaxHighlighter.registerLanguage('java', javaLang);
+SyntaxHighlighter.registerLanguage('c', cLang);
+SyntaxHighlighter.registerLanguage('cpp', cppLang);
+SyntaxHighlighter.registerLanguage('csharp', csharpLang);
+SyntaxHighlighter.registerLanguage('php', phpLang);
+SyntaxHighlighter.registerLanguage('ruby', rubyLang);
+SyntaxHighlighter.registerLanguage('swift', swiftLang);
+SyntaxHighlighter.registerLanguage('kotlin', kotlinLang);
+SyntaxHighlighter.registerLanguage('markup', htmlLang);
+SyntaxHighlighter.registerLanguage('html', htmlLang);
+SyntaxHighlighter.registerLanguage('css', cssLang);
+SyntaxHighlighter.registerLanguage('scss', scssLang);
+SyntaxHighlighter.registerLanguage('less', lessLang);
+SyntaxHighlighter.registerLanguage('json', jsonLang);
+SyntaxHighlighter.registerLanguage('yaml', yamlLang);
+SyntaxHighlighter.registerLanguage('markdown', markdownLang);
+SyntaxHighlighter.registerLanguage('sql', sqlLang);
+SyntaxHighlighter.registerLanguage('toml', tomlLang);
+SyntaxHighlighter.registerLanguage('xml', htmlLang);
 
 const getLanguage = (path: string | null): string => {
     if (!path) return 'text';
@@ -195,7 +251,7 @@ export function FilePreviewModal() {
                                             style: { fontFamily: '"JetBrains Mono", "Fira Code", "Consolas", "Monaco", "Courier New", monospace' }
                                         }}
                                         showLineNumbers
-                                        wrapLines
+                                        wrapLongLines
                                     >
                                         {content}
                                     </SyntaxHighlighter>
