@@ -39,7 +39,8 @@ self.onmessage = async (event: MessageEvent) => {
             }
             case 'merge-files': {
                 const result = wasm.merge_files_to_markdown(payload.files, payload.options);
-                self.postMessage({ type: 'markdown-result', payload: result });
+                // Forward toastId if present
+                self.postMessage({ type: 'markdown-result', payload: result, toastId: payload.toastId });
                 break;
             }
             case 'recalculate-counts': {

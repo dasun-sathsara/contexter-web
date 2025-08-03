@@ -151,9 +151,23 @@ export const useFileStore = create<FileState>()(
                             break;
                         }
                         case 'markdown-result': {
+                            // If a toastId was provided, update the same toast
+                            const toastId = event.data.toastId || undefined;
                             navigator.clipboard.writeText(payload)
-                                .then(() => toast.success("Copied to clipboard!"))
-                                .catch(() => toast.error("Failed to copy to clipboard."));
+                                .then(() => {
+                                    if (toastId) {
+                                        toast.success("Copied to clipboard!", { id: toastId });
+                                    } else {
+                                        toast.success("Copied to clipboard!");
+                                    }
+                                })
+                                .catch(() => {
+                                    if (toastId) {
+                                        toast.error("Failed to copy to clipboard.", { id: toastId });
+                                    } else {
+                                        toast.error("Failed to copy to clipboard.");
+                                    }
+                                });
                             break;
                         }
                         case 'recalculation-complete': {
@@ -309,10 +323,12 @@ export const useFileStore = create<FileState>()(
                         toast.warning("No files to copy.");
                         return;
                     }
-                    toast.info(`Copying ${filesToMerge.length} files...`);
+                    // Use a single toast that updates after completion
+                    const toastId = `copy-files-${Date.now()}`;
+                    toast.loading(`Copying ${filesToMerge.length} files...`, { id: toastId });
                     getWorker()?.postMessage({
                         type: 'merge-files',
-                        payload: { files: filesToMerge, options: { includePathHeaders: true } }
+                        payload: { files: filesToMerge, options: { includePathHeaders: true }, toastId }
                     });
                 },
 
