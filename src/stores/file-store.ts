@@ -44,6 +44,7 @@ interface FileState {
     previewedFilePath: string | null;
 
     processFiles: (files: File[]) => Promise<void>;
+    processDroppedFiles: (files: File[]) => Promise<void>;
     reprocessFiles: () => Promise<void>;
     setSettings: (newSettings: Partial<Settings>) => void;
     clearAll: () => void;
@@ -210,6 +211,52 @@ export const useFileStore = create<FileState>()(
                     set({ isLoading: true, statusMessage: 'Analyzing project structure...', fileTree: [], fileMap: new Map() });
 
                     const filesWithPath = files as FileWithPath[];
+                    const firstPath = filesWithPath[0]?.webkitRelativePath;
+
+                    if (!firstPath) {
+                        toast.error("Could not process files.", { description: "The dropped items don't appear to be a folder." });
+                        set({ isLoading: false, statusMessage: 'Error: Not a valid folder.' });
+                        return;
+                    }
+
+                    pendingFiles = filesWithPath;
+
+                    const gitignoreFile = filesWithPath.find((f) => f.webkitRelativePath.endsWith('.gitignore'));
+                    const gitignoreContent = gitignoreFile ? await gitignoreFile.text() : '';
+                    const rootPrefix = firstPath.substring(0, firstPath.indexOf('/') + 1);
+
+                    const metadata: FileMetadata[] = filesWithPath.map((f) => ({ path: f.webkitRelativePath, size: f.size }));
+
+                    getWorker()?.postMessage({
+                        type: 'filter-files',
+                        payload: { metadata, gitignoreContent, rootPrefix, settings: get().settings }
+                    });
+                },
+
+                processDroppedFiles: async (files: File[]) => {
+                    if (!files || files.length === 0) return;
+
+                    set({ isLoading: true, statusMessage: 'Analyzing project structure...', fileTree: [], fileMap: new Map() });
+
+                    // For dropped files, we use the 'path' property instead of 'webkitRelativePath'
+                    const filesWithPath = files.map(file => {
+                        const filePath = (file as File & { path?: string }).path;
+                        if (!filePath) return null;
+
+                        // Convert path to webkitRelativePath format (remove leading slash)
+                        const normalizedPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+
+                        // Add webkitRelativePath property to the original file object
+                        Object.defineProperty(file, 'webkitRelativePath', {
+                            value: normalizedPath,
+                            writable: false,
+                            enumerable: true,
+                            configurable: false
+                        });
+
+                        return file as FileWithPath;
+                    }).filter(Boolean) as FileWithPath[];
+
                     const firstPath = filesWithPath[0]?.webkitRelativePath;
 
                     if (!firstPath) {

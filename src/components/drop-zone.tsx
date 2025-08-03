@@ -9,14 +9,27 @@ import { Button } from './ui/button';
 import { LoadingOverlay } from './loading-overlay';
 
 export function DropZone() {
-    const { processFiles, isLoading, statusMessage } = useFileStore();
+    const { processFiles, processDroppedFiles, isLoading, statusMessage } = useFileStore();
 
     const onDrop = useCallback(
         (acceptedFiles: File[]) => {
             console.log('[DropZone] Files dropped:', acceptedFiles);
-            processFiles(acceptedFiles);
+            console.log('[DropZone] Drop event data details:', {
+                fileCount: acceptedFiles.length,
+                files: acceptedFiles.map(file => ({
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    lastModified: file.lastModified,
+                    webkitRelativePath: file.webkitRelativePath || 'N/A',
+                    path: (file as File & { path?: string }).path || 'N/A'
+                }))
+            });
+
+            // Use the specialized method for dropped files to avoid expensive normalization
+            processDroppedFiles(acceptedFiles);
         },
-        [processFiles]
+        [processDroppedFiles]
     );
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -26,8 +39,20 @@ export function DropZone() {
 
     const handleFolderSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.files) {
-            console.log('[DropZone] Folder selected:', Array.from(event.target.files));
-            processFiles(Array.from(event.target.files));
+            const filesArray = Array.from(event.target.files);
+            console.log('[DropZone] Folder selected:', filesArray);
+            console.log('[DropZone] File dialog data details:', {
+                fileCount: filesArray.length,
+                files: filesArray.map(file => ({
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    lastModified: file.lastModified,
+                    webkitRelativePath: file.webkitRelativePath || 'N/A',
+                    path: (file as File & { path?: string }).path || 'N/A'
+                }))
+            });
+            processFiles(filesArray);
         }
     };
 
