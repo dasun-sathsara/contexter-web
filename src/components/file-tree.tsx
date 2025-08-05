@@ -46,7 +46,7 @@ export function FileTree({ items }: FileTreeProps) {
                 </div>
             </div>
 
-            <ScrollArea className="flex-grow">
+            <ScrollArea className="flex-1 min-h-0">
                 <div className="p-4">
                     <div className="space-y-1">
                         {currentFolderPath && (

@@ -43,21 +43,21 @@ self.onmessage = async (event: MessageEvent<ReadFilesMessage>) => {
 
     try {
         const { files, pathsToRead, processingWorkerPort } = payload;
-        
+
         console.log(`[FileReader Worker] Starting to read ${pathsToRead.length} files...`);
-        
+
         // Create a map for quick file lookup
         const fileMap = new Map(files.map((f) => [f.webkitRelativePath, f]));
         const fileInputs: FileInput[] = [];
         const rootFileContents = new Map<string, string>();
-        
+
         // Read files in batches to avoid overwhelming the worker
         const BATCH_SIZE = 50;
         let processedCount = 0;
-        
+
         for (let i = 0; i < pathsToRead.length; i += BATCH_SIZE) {
             const batch = pathsToRead.slice(i, i + BATCH_SIZE);
-            
+
             const batchPromises = batch.map(async (path) => {
                 const file = fileMap.get(path);
                 if (file) {
@@ -73,10 +73,10 @@ self.onmessage = async (event: MessageEvent<ReadFilesMessage>) => {
                     }
                 }
             });
-            
+
             await Promise.all(batchPromises);
             processedCount += batch.length;
-            
+
             // Report progress to main thread
             const progressMessage: ReadProgressMessage = {
                 type: 'read-progress',
@@ -88,9 +88,9 @@ self.onmessage = async (event: MessageEvent<ReadFilesMessage>) => {
             };
             self.postMessage(progressMessage);
         }
-        
+
         console.log(`[FileReader Worker] Successfully read ${fileInputs.length} text files`);
-        
+
         // Send results back to main thread
         const result: ReadCompleteMessage = {
             type: 'read-complete',
@@ -99,9 +99,9 @@ self.onmessage = async (event: MessageEvent<ReadFilesMessage>) => {
                 rootFileContents
             }
         };
-        
+
         self.postMessage(result);
-        
+
         // If we have a processing worker port, send files directly to processing worker
         if (processingWorkerPort) {
             console.log('[FileReader Worker] Forwarding files to processing worker...');
@@ -110,16 +110,16 @@ self.onmessage = async (event: MessageEvent<ReadFilesMessage>) => {
                 payload: { fileInputs }
             });
         }
-        
+
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error('[FileReader Worker] Error reading files:', error);
-        
+
         const errorResult: ReadErrorMessage = {
             type: 'read-error',
             payload: errorMessage
         };
-        
+
         self.postMessage(errorResult);
     }
 };
