@@ -37,6 +37,12 @@ self.onmessage = async (event: MessageEvent) => {
                 self.postMessage({ type: 'processing-complete', payload: result });
                 break;
             }
+            case 'process-files-direct': {
+                // Handle files sent directly from the reader worker
+                const result = wasm.process_files(payload.fileInputs, payload.settings || {});
+                self.postMessage({ type: 'processing-complete', payload: result });
+                break;
+            }
             case 'merge-files': {
                 const result = wasm.merge_files_to_markdown(payload.files, payload.options);
                 // Forward toastId and action if present

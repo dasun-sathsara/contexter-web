@@ -11,13 +11,23 @@ type FileWithPath = File & { webkitRelativePath: string };
 
 // --- Worker Management ---
 
-let worker: Worker | null = null;
-const getWorker = (): Worker | null => {
+let processingWorker: Worker | null = null;
+let readerWorker: Worker | null = null;
+
+const getProcessingWorker = (): Worker | null => {
     if (typeof window === 'undefined') return null;
-    if (!worker) {
-        worker = new Worker(new URL('../workers/file-processor.worker.ts', import.meta.url));
+    if (!processingWorker) {
+        processingWorker = new Worker(new URL('../workers/file-processor.worker.ts', import.meta.url));
     }
-    return worker;
+    return processingWorker;
+};
+
+const getReaderWorker = (): Worker | null => {
+    if (typeof window === 'undefined') return null;
+    if (!readerWorker) {
+        readerWorker = new Worker(new URL('../workers/file-reader.worker.ts', import.meta.url));
+    }
+    return readerWorker;
 };
 
 /**
@@ -73,7 +83,6 @@ export const useFileStore = create<FileState>()(
     persist(
         immer((set, get) => {
             const _readAndProcessFiles = async (pathsToRead: string[]) => {
-
                 if (!pendingFiles) {
                     toast.error("An internal error occurred: pending files not found.");
                     set({ isLoading: false, statusMessage: 'Error: Could not find files to read.' });
@@ -84,40 +93,23 @@ export const useFileStore = create<FileState>()(
                     set({ isLoading: false, statusMessage: 'Error: No files to read.' });
                     return;
                 }
+
                 set({ statusMessage: `Reading ${pathsToRead.length} files...` });
 
-                const fileMap = new Map(pendingFiles.map((f) => [f.webkitRelativePath, f]));
-                const fileInputs: FileInput[] = [];
-                const rootFileContents = new Map<string, string>();
-
-                const readPromises = pathsToRead.map(async (path) => {
-                    const file = fileMap.get(path);
-                    if (file) {
-                        try {
-                            const content = await file.text();
-                            if (!content.includes('\uFFFD')) {
-                                fileInputs.push({ path, content });
-                                rootFileContents.set(path, content);
-                            }
-                        } catch (e) {
-                            console.warn(`Could not read file: ${path}`, e);
-                        }
+                // Send files to the dedicated reader worker
+                getReaderWorker()?.postMessage({
+                    type: 'read-files',
+                    payload: {
+                        files: pendingFiles,
+                        pathsToRead: pathsToRead
                     }
-                });
-
-                await Promise.all(readPromises);
-                set({ rootFiles: rootFileContents, statusMessage: `Processing ${fileInputs.length} text files...` });
-                pendingFiles = null;
-
-                getWorker()?.postMessage({
-                    type: 'process-files',
-                    payload: { files: fileInputs, settings: get().settings }
                 });
             };
 
-            const workerInstance = getWorker();
-            if (workerInstance) {
-                workerInstance.onmessage = (event: MessageEvent) => {
+            // Set up processing worker message handler
+            const processingWorkerInstance = getProcessingWorker();
+            if (processingWorkerInstance) {
+                processingWorkerInstance.onmessage = (event: MessageEvent) => {
                     const { type, payload } = event.data;
 
                     switch (type) {
@@ -177,7 +169,7 @@ export const useFileStore = create<FileState>()(
                                         } else {
                                             toast.success("Saved markdown to file.");
                                         }
-                                    } catch (_err) {
+                                    } catch {
                                         if (toastId) {
                                             toast.error("Failed to save file.", { id: toastId });
                                         } else {
@@ -277,6 +269,46 @@ export const useFileStore = create<FileState>()(
                 };
             }
 
+            // Set up reader worker message handler
+            const readerWorkerInstance = getReaderWorker();
+            if (readerWorkerInstance) {
+                readerWorkerInstance.onmessage = (event: MessageEvent) => {
+                    const { type, payload } = event.data;
+
+                    switch (type) {
+                        case 'read-progress': {
+                            set({ statusMessage: payload.message });
+                            break;
+                        }
+                        case 'read-complete': {
+                            const { fileInputs, rootFileContents } = payload;
+
+                            // Store the file contents
+                            set({
+                                rootFiles: rootFileContents,
+                                statusMessage: `Processing ${fileInputs.length} text files...`
+                            });
+
+                            // Clear pending files as they're no longer needed
+                            pendingFiles = null;
+
+                            // Send files to processing worker
+                            getProcessingWorker()?.postMessage({
+                                type: 'process-files',
+                                payload: { files: fileInputs, settings: get().settings }
+                            });
+                            break;
+                        }
+                        case 'read-error': {
+                            set({ isLoading: false, statusMessage: `Error: ${payload}` });
+                            toast.error("An error occurred while reading files.", { description: payload });
+                            pendingFiles = null;
+                            break;
+                        }
+                    }
+                };
+            }
+
             return {
                 fileTree: [], fileMap: new Map(), rootFiles: new Map(),
                 isLoading: false, statusMessage: 'Ready. Drop a folder to get started.',
@@ -306,7 +338,7 @@ export const useFileStore = create<FileState>()(
 
                     const metadata: FileMetadata[] = filesWithPath.map((f) => ({ path: f.webkitRelativePath, size: f.size }));
 
-                    getWorker()?.postMessage({
+                    getProcessingWorker()?.postMessage({
                         type: 'filter-files',
                         payload: { metadata, gitignoreContent, rootPrefix, settings: get().settings }
                     });
@@ -352,7 +384,7 @@ export const useFileStore = create<FileState>()(
 
                     const metadata: FileMetadata[] = filesWithPath.map((f) => ({ path: f.webkitRelativePath, size: f.size }));
 
-                    getWorker()?.postMessage({
+                    getProcessingWorker()?.postMessage({
                         type: 'filter-files',
                         payload: { metadata, gitignoreContent, rootPrefix, settings: get().settings }
                     });
@@ -363,7 +395,7 @@ export const useFileStore = create<FileState>()(
                     if (rootFiles.size === 0) return;
                     set({ isLoading: true, statusMessage: 'Re-processing with new settings...' });
                     const fileInputs = Array.from(rootFiles.entries()).map(([path, content]) => ({ path, content }));
-                    getWorker()?.postMessage({ type: 'process-files', payload: { files: fileInputs, settings } });
+                    getProcessingWorker()?.postMessage({ type: 'process-files', payload: { files: fileInputs, settings } });
                 },
 
                 setSettings: (newSettings) => {
@@ -467,7 +499,7 @@ export const useFileStore = create<FileState>()(
                     // Use a single toast that updates after completion
                     const toastId = `copy-files-${Date.now()}`;
                     toast.loading(`Copying ${filesToMerge.length} files...`, { id: toastId });
-                    getWorker()?.postMessage({
+                    getProcessingWorker()?.postMessage({
                         type: 'merge-files',
                         payload: { files: filesToMerge, options: { includePathHeaders: true }, toastId }
                     });
@@ -505,7 +537,7 @@ export const useFileStore = create<FileState>()(
 
                     const toastId = `save-files-${Date.now()}`;
                     toast.loading(`Preparing ${filesToMerge.length} files for save...`, { id: toastId });
-                    getWorker()?.postMessage({
+                    getProcessingWorker()?.postMessage({
                         type: 'merge-files',
                         payload: { files: filesToMerge, options: { includePathHeaders: true }, toastId, action: 'save' }
                     });
@@ -577,7 +609,7 @@ export const useFileStore = create<FileState>()(
 
                     const { fileTree, settings } = get();
                     if (fileTree.length > 0) {
-                        getWorker()?.postMessage({
+                        getProcessingWorker()?.postMessage({
                             type: 'recalculate-counts',
                             payload: { fileTree, settings }
                         });
@@ -604,5 +636,8 @@ export const useFileStore = create<FileState>()(
 );
 
 if (typeof window !== 'undefined') {
-    window.addEventListener('beforeunload', () => worker?.terminate());
+    window.addEventListener('beforeunload', () => {
+        processingWorker?.terminate();
+        readerWorker?.terminate();
+    });
 }
