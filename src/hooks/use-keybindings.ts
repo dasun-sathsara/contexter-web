@@ -87,7 +87,7 @@ export const useKeybindings = () => {
                 // Navigation and action keys
                 /^(ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Enter|Escape| |Delete|Home|End)$/i.test(key) ||
                 // Ctrl/Meta combos we support
-                (ctrlOrMeta && /^(a|c|A|C|Enter|Delete)$/i.test(key));
+                (ctrlOrMeta && /^(a|c|s|A|C|S|Enter|Delete)$/i.test(key));
 
             if (!isHandledKey) return;
 
@@ -174,6 +174,16 @@ export const useKeybindings = () => {
                         }
                         return;
                     }
+                    case 's': {
+                        // Prevent browser "Save page" and trigger save to file
+                        e.preventDefault();
+                        if (store.selectedPaths.size === 0 && store.cursorPath && store.cursorPath !== '..') {
+                            store.saveToFile(new Set([store.cursorPath]));
+                        } else {
+                            store.saveToFile();
+                        }
+                        return;
+                    }
                     case 'enter':
                         if (store.cursorPath) {
                             const node = store.fileMap.get(store.cursorPath);
@@ -214,7 +224,7 @@ export const useKeybindings = () => {
         const handleVimKeys = (e: KeyboardEvent, view: FileNode[]) => {
             const store = storeRef.current;
             // Include all handled keys explicitly; ensure 'd' is captured
-            const isHandledKey = /^(j|k|h|l|G|g|v|V|y|d|C|o| |Enter|Escape|ArrowUp|ArrowDown|ArrowLeft|ArrowRight)$/.test(e.key);
+            const isHandledKey = /^(j|k|h|l|G|g|v|V|y|d|s|C|o| |Enter|Escape|ArrowUp|ArrowDown|ArrowLeft|ArrowRight)$/.test(e.key);
             if (isHandledKey) e.preventDefault();
             else return;
 
@@ -238,6 +248,12 @@ export const useKeybindings = () => {
             };
 
             const exitVisualMode = () => store.setVimMode('normal');
+
+            const save = () => {
+                if (store.selectedPaths.size > 0) store.saveToFile();
+                else if (store.cursorPath && store.cursorPath !== '..') store.saveToFile(new Set([store.cursorPath]));
+                exitVisualMode();
+            };
 
             const yank = () => {
                 if (store.selectedPaths.size > 0) store.yankToClipboard();
@@ -278,6 +294,7 @@ export const useKeybindings = () => {
                         break;
                     case 'y': yank(); break;
                     case 'd': del(); break;
+                    case 's': save(); break;
                     case 'C': if (e.shiftKey) store.clearAll(); break;
                     case ' ': if (store.cursorPath && store.cursorPath !== '..') store.toggleSelection(store.cursorPath); break;
                     case 'Escape': store.setSelection(new Set()); break;
@@ -290,6 +307,7 @@ export const useKeybindings = () => {
                     case 'G': goTo('last'); break;
                     case 'y': yank(); break;
                     case 'd': del(); break;
+                    case 's': save(); break;
                     case 'Escape': exitVisualMode(); break;
                 }
             }

@@ -79,6 +79,10 @@ export function StatusBar() {
                                 <span className="text-xs transition-colors duration-300">Delete:</span>
                                 <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">d</kbd>
                             </div>
+                            <div className="hidden lg:flex items-center gap-2">
+                                <span className="text-xs transition-colors duration-300">Save:</span>
+                                <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">s</kbd>
+                            </div>
                             <div className="hidden xl:flex items-center gap-2">
                                 <span className="text-xs transition-colors duration-300">Open:</span>
                                 <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">o</kbd>
@@ -132,6 +136,12 @@ export function StatusBar() {
                                 <span className="text-xs transition-colors duration-300">Delete:</span>
                                 <div className="flex gap-1">
                                     <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">Del</kbd>
+                                </div>
+                            </div>
+                            <div className="hidden xl:flex items-center gap-2">
+                                <span className="text-xs transition-colors duration-300">Save:</span>
+                                <div className="flex gap-1">
+                                    <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">Ctrl+S</kbd>
                                 </div>
                             </div>
                             <div className="hidden 2xl:flex items-center gap-2">

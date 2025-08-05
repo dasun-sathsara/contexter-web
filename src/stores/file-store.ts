@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { enableMapSet } from 'immer';
-import { FileNode, VimMode, FileInput, ProcessingResult, Settings, FileMetadata, KeybindingMode } from '@/lib/types';
+import { FileNode, VimMode, FileInput, ProcessingResult, Settings, FileMetadata } from '@/lib/types';
 import { toast } from 'sonner';
 
 enableMapSet();
@@ -56,6 +56,7 @@ interface FileState {
     setVimMode: (mode: VimMode) => void;
     setVisualAnchor: (path: string | null) => void;
     yankToClipboard: (pathsToYank?: Set<string>) => void;
+    saveToFile: (pathsToSave?: Set<string>) => void;
     deleteSelected: (pathsToDelete?: Set<string>) => void;
     openPreview: (path: string) => void;
     closePreview: () => void;
@@ -153,8 +154,85 @@ export const useFileStore = create<FileState>()(
                             break;
                         }
                         case 'markdown-result': {
-                            // If a toastId was provided, update the same toast
+                            // Distinguish between copy and save actions
                             const toastId = event.data.toastId || undefined;
+                            const action = event.data.action as 'save' | undefined;
+
+                            if (action === 'save') {
+                                const markdown: string = payload as string;
+
+                                const doBlobDownload = () => {
+                                    try {
+                                        const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = 'contexter-output.md';
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        document.body.removeChild(a);
+                                        URL.revokeObjectURL(url);
+                                        if (toastId) {
+                                            toast.success("Saved markdown to file.", { id: toastId });
+                                        } else {
+                                            toast.success("Saved markdown to file.");
+                                        }
+                                    } catch (_err) {
+                                        if (toastId) {
+                                            toast.error("Failed to save file.", { id: toastId });
+                                        } else {
+                                            toast.error("Failed to save file.");
+                                        }
+                                    }
+                                };
+
+                                const saveWithFileSystemAccess = async () => {
+                                    try {
+                                        // @ts-expect-error - showSaveFilePicker may not be in TypeScript lib by default
+                                        if (typeof window.showSaveFilePicker === 'function') {
+                                            // @ts-expect-error - types not available in TS lib
+                                            const handle = await window.showSaveFilePicker({
+                                                suggestedName: 'contexter-output.md',
+                                                types: [
+                                                    {
+                                                        description: 'Markdown',
+                                                        accept: { 'text/markdown': ['.md'] }
+                                                    }
+                                                ]
+                                            });
+                                            const writable = await handle.createWritable();
+                                            await writable.write(markdown);
+                                            await writable.close();
+                                            if (toastId) {
+                                                toast.success("Saved markdown to file.", { id: toastId });
+                                            } else {
+                                                toast.success("Saved markdown to file.");
+                                            }
+                                        } else {
+                                            doBlobDownload();
+                                        }
+                                    } catch (err) {
+                                        // AbortError is user cancel; treat gently
+                                        const e = err as unknown as { name?: string; code?: number };
+                                        if (e && (e.name === 'AbortError' || e.code === 20)) {
+                                            if (toastId) {
+                                                toast.info("Save canceled.", { id: toastId });
+                                            } else {
+                                                toast.info("Save canceled.");
+                                            }
+                                        } else {
+                                            // On any failure, fallback to blob download
+                                            doBlobDownload();
+                                        }
+                                    }
+                                };
+
+                                // Try File System Access API first, fallback to blob download
+                                void saveWithFileSystemAccess();
+                                break;
+                            }
+
+                            // Default behavior: copy to clipboard
                             navigator.clipboard.writeText(payload)
                                 .then(() => {
                                     if (toastId) {
@@ -392,6 +470,44 @@ export const useFileStore = create<FileState>()(
                     getWorker()?.postMessage({
                         type: 'merge-files',
                         payload: { files: filesToMerge, options: { includePathHeaders: true }, toastId }
+                    });
+                },
+
+                saveToFile: (pathsToSave) => {
+                    // Determine paths: explicit set, else selected, else cursor
+                    let paths = pathsToSave || get().selectedPaths;
+                    if ((paths?.size ?? 0) === 0) {
+                        const cursor = get().cursorPath;
+                        if (cursor && cursor !== '..') {
+                            paths = new Set([cursor]);
+                        } else {
+                            toast.warning("Nothing to save.");
+                            return;
+                        }
+                    }
+
+                    const filesToMerge: FileInput[] = [];
+                    const collectFiles = (path: string) => {
+                        const node = get().fileMap.get(path);
+                        if (!node) return;
+                        if (node.is_dir) node.children.forEach(child => collectFiles(child.path));
+                        else {
+                            const content = get().rootFiles.get(path);
+                            if (content) filesToMerge.push({ path, content });
+                        }
+                    };
+                    paths.forEach(collectFiles);
+
+                    if (filesToMerge.length === 0) {
+                        toast.warning("No files to save.");
+                        return;
+                    }
+
+                    const toastId = `save-files-${Date.now()}`;
+                    toast.loading(`Preparing ${filesToMerge.length} files for save...`, { id: toastId });
+                    getWorker()?.postMessage({
+                        type: 'merge-files',
+                        payload: { files: filesToMerge, options: { includePathHeaders: true }, toastId, action: 'save' }
                     });
                 },
 
