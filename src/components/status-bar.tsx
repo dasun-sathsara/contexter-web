@@ -75,6 +75,25 @@ export function StatusBar() {
                                 <span className="text-xs transition-colors duration-300">Copy:</span>
                                 <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">y</kbd>
                             </div>
+                            <div className="hidden lg:flex items-center gap-2">
+                                <span className="text-xs transition-colors duration-300">Delete:</span>
+                                <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">d</kbd>
+                            </div>
+                            <div className="hidden xl:flex items-center gap-2">
+                                <span className="text-xs transition-colors duration-300">Open:</span>
+                                <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">o</kbd>
+                            </div>
+                            <div className="hidden xl:flex items-center gap-2">
+                                <span className="text-xs transition-colors duration-300">Go to:</span>
+                                <div className="flex gap-1">
+                                    <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">g</kbd>
+                                    <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">G</kbd>
+                                </div>
+                            </div>
+                            <div className="hidden 2xl:flex items-center gap-2">
+                                <span className="text-xs transition-colors duration-300">Toggle:</span>
+                                <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">Space</kbd>
+                            </div>
                         </>
                     ) : (
                         <>
@@ -83,15 +102,44 @@ export function StatusBar() {
                                 <div className="flex gap-1">
                                     <kbd className="px-1 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">↑</kbd>
                                     <kbd className="px-1 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">↓</kbd>
+                                    <kbd className="px-1 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">←</kbd>
+                                    <kbd className="px-1 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">→</kbd>
                                 </div>
                             </div>
                             <div className="hidden md:flex items-center gap-2">
-                                <span className="text-xs transition-colors duration-300">Select:</span>
-                                <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">Space</kbd>
+                                <span className="text-xs transition-colors duration-300">Open:</span>
+                                <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">Enter</kbd>
                             </div>
                             <div className="hidden lg:flex items-center gap-2">
-                                <span className="text-xs transition-colors duration-300">Copy:</span>
-                                <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-mono transition-colors duration-300">Ctrl+C</kbd>
+                                <span className="text-xs transition-colors duration-300">Preview:</span>
+                                <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">Ctrl+Enter</kbd>
+                            </div>
+                            <div className="hidden lg:flex items-center gap-2">
+                                <span className="text-xs transition-colors duration-300">Select:</span>
+                                <div className="flex gap-1">
+                                    <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">Space</kbd>
+                                    <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">Shift+↑/↓</kbd>
+                                </div>
+                            </div>
+                            <div className="hidden xl:flex items-center gap-2">
+                                <span className="text-xs transition-colors duration-300">Copy / Select All:</span>
+                                <div className="flex gap-1">
+                                    <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">Ctrl+C</kbd>
+                                    <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">Ctrl+A</kbd>
+                                </div>
+                            </div>
+                            <div className="hidden xl:flex items-center gap-2">
+                                <span className="text-xs transition-colors duration-300">Delete:</span>
+                                <div className="flex gap-1">
+                                    <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">Del</kbd>
+                                </div>
+                            </div>
+                            <div className="hidden 2xl:flex items-center gap-2">
+                                <span className="text-xs transition-colors duration-300">Jump:</span>
+                                <div className="flex gap-1">
+                                    <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">Home</kbd>
+                                    <kbd className="px-1.5 py-0.5 text-xs bg-muted/80 text-muted-foreground border border-border/50 rounded font-sans transition-colors duration-300">End</kbd>
+                                </div>
                             </div>
                         </>
                     )}

@@ -78,62 +78,143 @@ export const useKeybindings = () => {
 
         const handleStandardKeys = (e: KeyboardEvent, view: FileNode[]) => {
             const store = storeRef.current;
-            const isHandledKey = /Arrow|Enter|Escape| |Delete|Backspace/.test(e.key) ||
-                ((e.metaKey || e.ctrlKey) && /^[ac]$/.test(e.key));
 
-            if (isHandledKey) e.preventDefault();
-            else return;
+            const ctrlOrMeta = e.metaKey || e.ctrlKey;
+            const key = e.key;
+
+            // Determine if we will handle this key to prevent default browser behavior
+            const isHandledKey =
+                // Navigation and action keys
+                /^(ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Enter|Escape| |Delete|Home|End)$/i.test(key) ||
+                // Ctrl/Meta combos we support
+                (ctrlOrMeta && /^(a|c|A|C|Enter|Delete)$/i.test(key));
+
+            if (!isHandledKey) return;
+
+            // Prevent default only for keys we explicitly handle; allow Ctrl+C to work reliably by handling it here.
+            e.preventDefault();
 
             const moveAndSelect = (delta: number) => {
                 const currentIndex = store.cursorPath ? view.findIndex(item => item.path === store.cursorPath) : -1;
-                const newIndex = Math.max(0, Math.min(view.length - 1, (currentIndex === -1 ? 0 : currentIndex) + delta));
+                const baseIndex = currentIndex === -1 ? 0 : currentIndex;
+                const newIndex = Math.max(0, Math.min(view.length - 1, baseIndex + delta));
                 const newCursorPath = view[newIndex]?.path;
 
-                if (newCursorPath && newCursorPath !== store.cursorPath) {
-                    if (e.shiftKey) {
-                        if (!store.visualAnchorPath) store.setVisualAnchor(store.cursorPath);
-                        store.setCursor(newCursorPath);
-                        updateVisualSelection(newCursorPath, view);
-                    } else {
-                        store.setVisualAnchor(null);
-                        store.setCursor(newCursorPath);
-                        store.setSelection(new Set());
-                    }
+                if (!newCursorPath || newCursorPath === store.cursorPath) return;
+
+                if (e.shiftKey) {
+                    if (!store.visualAnchorPath) store.setVisualAnchor(store.cursorPath);
+                    store.setCursor(newCursorPath);
+                    updateVisualSelection(newCursorPath, view);
+                } else {
+                    store.setVisualAnchor(null);
+                    store.setCursor(newCursorPath);
+                    store.setSelection(new Set());
                 }
             };
 
-            switch (e.key) {
-                case 'ArrowDown': moveAndSelect(1); break;
-                case 'ArrowUp': moveAndSelect(-1); break;
-                case 'ArrowLeft': store.navigateBack(); break;
-                case 'ArrowRight':
-                case 'Enter': {
-                    if (store.cursorPath) {
-                        const node = store.fileMap.get(store.cursorPath);
-                        if (node && !node.is_dir) store.openPreview(store.cursorPath);
-                        else store.navigateInto(store.cursorPath);
-                    }
-                    break;
+            const goToIndex = (index: number) => {
+                const newIndex = Math.max(0, Math.min(view.length - 1, index));
+                const newCursorPath = view[newIndex]?.path;
+                if (!newCursorPath) return;
+
+                if (e.shiftKey) {
+                    if (!store.visualAnchorPath) store.setVisualAnchor(store.cursorPath);
+                    store.setCursor(newCursorPath);
+                    updateVisualSelection(newCursorPath, view);
+                } else {
+                    store.setVisualAnchor(null);
+                    store.setCursor(newCursorPath);
+                    store.setSelection(new Set());
                 }
-                case ' ': if (store.cursorPath && store.cursorPath !== '..') store.toggleSelection(store.cursorPath); break;
-                case 'Escape': store.setSelection(new Set()); store.setVisualAnchor(null); break;
-                case 'Delete':
-                case 'Backspace': store.deleteSelected(); break;
-                case 'c':
-                    if (e.metaKey || e.ctrlKey) store.yankToClipboard();
-                    break;
-                case 'a':
-                    if (e.metaKey || e.ctrlKey) {
+            };
+
+            const handleEnterOrArrowRight = () => {
+                if (!store.cursorPath) return;
+                if (store.cursorPath === '..') {
+                    store.navigateBack();
+                    return;
+                }
+                const node = store.fileMap.get(store.cursorPath);
+                if (!node) return;
+                if (node.is_dir) {
+                    store.navigateInto(store.cursorPath);
+                } else {
+                    store.openPreview(store.cursorPath);
+                }
+            };
+
+            const handleDelete = () => {
+                if (store.selectedPaths.size === 0 && store.cursorPath && store.cursorPath !== '..') {
+                    store.deleteSelected(new Set([store.cursorPath]));
+                } else {
+                    store.deleteSelected();
+                }
+            };
+
+            // Handle Ctrl/Meta combos first
+            if (ctrlOrMeta) {
+                switch (key.toLowerCase()) {
+                    case 'a': {
                         const allPaths = new Set(view.map(item => item.path).filter(p => p !== '..'));
                         store.setSelection(allPaths);
+                        return;
                     }
-                    break;
+                    case 'c': {
+                        // If there's an active preview, prefer native copying of selection; otherwise, yank selected/files.
+                        if (store.previewedFilePath) {
+                            // Let browser handle copy for text selection inside preview; do not override.
+                            return;
+                        }
+                        // If nothing is selected, yank current item if valid; else yank selection set.
+                        if (store.selectedPaths.size === 0 && store.cursorPath && store.cursorPath !== '..') {
+                            store.yankToClipboard(new Set([store.cursorPath]));
+                        } else {
+                            store.yankToClipboard();
+                        }
+                        return;
+                    }
+                    case 'enter':
+                        if (store.cursorPath) {
+                            const node = store.fileMap.get(store.cursorPath);
+                            if (node && !node.is_dir) store.openPreview(store.cursorPath);
+                        }
+                        return;
+                    case 'delete':
+                        handleDelete();
+                        return;
+                }
+            }
+
+            // Non-modifier keys
+            switch (key) {
+                case 'ArrowDown': return moveAndSelect(1);
+                case 'ArrowUp': return moveAndSelect(-1);
+                case 'ArrowLeft': return store.navigateBack();
+                case 'ArrowRight':
+                case 'Enter': return handleEnterOrArrowRight();
+                case 'Home': return goToIndex(0);
+                case 'End': return goToIndex(view.length - 1);
+                case ' ': {
+                    if (store.cursorPath && store.cursorPath !== '..') store.toggleSelection(store.cursorPath);
+                    return;
+                }
+                case 'Escape': {
+                    store.setSelection(new Set());
+                    store.setVisualAnchor(null);
+                    return;
+                }
+                case 'Delete': {
+                    handleDelete();
+                    return;
+                }
             }
         };
 
         const handleVimKeys = (e: KeyboardEvent, view: FileNode[]) => {
             const store = storeRef.current;
-            const isHandledKey = /^[jkhlGgvVydCo ]|Enter|Escape|Arrow/.test(e.key);
+            // Include all handled keys explicitly; ensure 'd' is captured
+            const isHandledKey = /^(j|k|h|l|G|g|v|V|y|d|C|o| |Enter|Escape|ArrowUp|ArrowDown|ArrowLeft|ArrowRight)$/.test(e.key);
             if (isHandledKey) e.preventDefault();
             else return;
 
@@ -176,7 +257,13 @@ export const useKeybindings = () => {
                     case 'k': case 'ArrowUp': moveCursor(-1); break;
                     case 'h': case 'ArrowLeft': store.navigateBack(); break;
                     case 'l': case 'ArrowRight': case 'Enter':
-                        if (store.cursorPath) store.navigateInto(store.cursorPath);
+                        if (store.cursorPath) {
+                            if (store.cursorPath === '..') {
+                                store.navigateBack();
+                            } else {
+                                store.navigateInto(store.cursorPath);
+                            }
+                        }
                         break;
                     case 'o':
                         if (store.cursorPath) {
