@@ -26,6 +26,7 @@ export interface FileMetadata {
 }
 
 export type VimMode = 'normal' | 'visual';
+export type KeybindingMode = 'vim' | 'standard';
 
 /**
  * User-configurable settings that control application behavior.
@@ -34,6 +35,7 @@ export interface Settings {
     hideEmptyFolders: boolean;
     showTokenCount: boolean;
     maxFileSize: number;
+    keybindingMode: KeybindingMode;
 }
 
 export interface ProcessingOptions {

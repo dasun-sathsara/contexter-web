@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { enableMapSet } from 'immer';
-import { FileNode, VimMode, FileInput, ProcessingResult, Settings, FileMetadata } from '@/lib/types';
+import { FileNode, VimMode, FileInput, ProcessingResult, Settings, FileMetadata, KeybindingMode } from '@/lib/types';
 import { toast } from 'sonner';
 
 enableMapSet();
@@ -65,6 +65,7 @@ const defaultSettings: Settings = {
     hideEmptyFolders: true,
     showTokenCount: true,
     maxFileSize: 2 * 1024 * 1024,
+    keybindingMode: 'standard',
 };
 
 export const useFileStore = create<FileState>()(
@@ -291,8 +292,23 @@ export const useFileStore = create<FileState>()(
                     const oldSettings = get().settings;
                     const updatedSettings = { ...oldSettings, ...newSettings };
                     if (JSON.stringify(oldSettings) !== JSON.stringify(updatedSettings)) {
-                        set({ settings: updatedSettings });
-                        if (get().fileTree.length > 0) get().reprocessFiles();
+                        set(state => {
+                            state.settings = updatedSettings;
+                            if (oldSettings.keybindingMode !== updatedSettings.keybindingMode) {
+                                state.vimMode = 'normal';
+                                state.selectedPaths.clear();
+                                state.visualAnchorPath = null;
+                                toast.info(`Keybindings set to ${updatedSettings.keybindingMode === 'vim' ? 'VIM' : 'Standard'}.`);
+                            }
+                        });
+
+                        if (get().fileTree.length > 0) {
+                            const needsReprocessing = oldSettings.hideEmptyFolders !== updatedSettings.hideEmptyFolders ||
+                                oldSettings.showTokenCount !== updatedSettings.showTokenCount;
+                            if (needsReprocessing) {
+                                get().reprocessFiles();
+                            }
+                        }
                     }
                 },
 

@@ -6,13 +6,13 @@ import { FileTree } from '@/components/file-tree';
 import { Header } from '@/components/header';
 import { StatusBar } from '@/components/status-bar';
 import { useFileStore } from '@/stores/file-store';
-import { useVimBindings } from '@/hooks/use-vim-bindings';
+import { useKeybindings } from '@/hooks/use-keybindings';
 import { FileNode } from '@/lib/types';
 import { LoadingOverlay } from '@/components/loading-overlay';
 import { FilePreviewModal } from '@/components/file-preview-modal';
 
 export default function HomePage() {
-    useVimBindings();
+    useKeybindings();
     const { fileTree, currentFolderPath, fileMap, isLoading, statusMessage } = useFileStore();
 
     const currentView: FileNode[] = currentFolderPath ? fileMap.get(currentFolderPath)?.children || [] : fileTree;

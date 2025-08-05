@@ -1,10 +1,12 @@
 'use client';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from './ui/button';
-import { Settings, ToggleLeft } from 'lucide-react';
+import { Settings, ToggleLeft, Keyboard } from 'lucide-react';
 import { useFileStore } from '@/stores/file-store';
 import { Label } from './ui/label';
 import { Checkbox } from './ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { KeybindingMode } from '@/lib/types';
 
 export function SettingsSheet() {
     const { settings, setSettings } = useFileStore();
@@ -71,6 +73,41 @@ export function SettingsSheet() {
                         </div>
                     </div>
 
+                    {/* Keybinding Options */}
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                            <Keyboard className="h-4 w-4 text-primary" />
+                            Keybinding Mode
+                        </h3>
+                        <RadioGroup
+                            value={settings.keybindingMode}
+                            onValueChange={(value) => setSettings({ keybindingMode: value as KeybindingMode })}
+                            className="space-y-1 pl-6"
+                        >
+                            <div className="flex items-center space-x-3">
+                                <RadioGroupItem value="standard" id="keybind-standard" />
+                                <div className="grid gap-1.5 leading-none">
+                                    <Label htmlFor="keybind-standard" className="font-medium">
+                                        Standard
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Familiar navigation with Arrow keys, Space, and Enter.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                                <RadioGroupItem value="vim" id="keybind-vim" />
+                                <div className="grid gap-1.5 leading-none">
+                                    <Label htmlFor="keybind-vim" className="font-medium">
+                                        VIM
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Modal navigation with h, j, k, l, y, d.
+                                    </p>
+                                </div>
+                            </div>
+                        </RadioGroup>
+                    </div>
 
                 </div>
             </SheetContent>
