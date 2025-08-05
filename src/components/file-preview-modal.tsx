@@ -242,7 +242,7 @@ export function FilePreviewModal() {
                                             margin: 0,
                                             padding: '1.5rem',
                                             backgroundColor: 'transparent',
-                                            fontSize: '0.875rem',
+                                            fontSize: '0.9rem',
                                             lineHeight: '1.6',
                                             fontFamily: '"JetBrains Mono", "Fira Code", "Consolas", "Monaco", "Courier New", monospace',
                                         }}

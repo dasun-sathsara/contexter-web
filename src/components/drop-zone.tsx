@@ -60,10 +60,15 @@ export function DropZone() {
         <div
             {...getRootProps()}
             className={cn(
-                'flex-grow flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl transition-all duration-300 ease-out',
+                // Base container
+                'flex-grow flex flex-col items-center justify-center p-12 rounded-xl transition-all duration-300 ease-out',
+                // Border + background states
+                'border-2 border-dashed',
                 isDragActive
                     ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-muted-foreground/30',
+                    : 'border-border hover:border-muted-foreground/30 hover:bg-muted/10',
+                // Focus ring for accessibility
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
                 'relative min-h-[400px]'
             )}
         >
@@ -79,45 +84,53 @@ export function DropZone() {
 
             {isLoading && (
                 <LoadingOverlay
-                    message={statusMessage || 'Processing files...'}
-                    subMessage="This may take a moment for large folders"
+                    message={statusMessage || 'Processing files…'}
+                    subMessage="Large folders may take a moment"
                 />
             )}
 
-            <div className={cn(
-                "flex flex-col items-center text-center transition-opacity duration-300",
-                isLoading && "opacity-0 pointer-events-none"
-            )}>
-                <UploadCloud className={cn(
-                    'h-16 w-16 mb-6 transition-colors duration-300',
-                    isDragActive ? 'text-primary' : 'text-muted-foreground'
-                )} />
+            <div
+                className={cn(
+                    'flex flex-col items-center text-center transition-opacity duration-300',
+                    isLoading && 'opacity-0 pointer-events-none'
+                )}
+            >
+                <UploadCloud
+                    className={cn(
+                        'h-16 w-16 mb-6 transition-colors duration-300',
+                        isDragActive ? 'text-primary' : 'text-muted-foreground'
+                    )}
+                />
 
-                <h2 className={cn(
-                    'text-2xl font-semibold mb-3 transition-colors duration-300',
-                    isDragActive ? 'text-primary' : 'text-foreground'
-                )}>
-                    {isDragActive ? 'Drop your files here!' : 'Drop Files or Folders'}
+                <h2
+                    className={cn(
+                        'text-2xl font-semibold mb-2 transition-colors duration-300',
+                        isDragActive ? 'text-primary' : 'text-foreground'
+                    )}
+                >
+                    {isDragActive ? 'Drop to start' : 'Drop files or folders'}
                 </h2>
 
                 <p className="text-muted-foreground mb-8 max-w-sm transition-colors duration-300">
                     {isDragActive
-                        ? 'Release to process your files'
-                        : 'Drag and drop your project files to get started'
-                    }
+                        ? 'Release to begin processing'
+                        : 'Drag and drop your project files, or choose a folder to analyze'}
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-3">
                     <Button variant="outline" asChild>
-                        <label htmlFor="folder-upload" className="cursor-pointer transition-colors duration-300">
+                        <label
+                            htmlFor="folder-upload"
+                            className="cursor-pointer transition-colors duration-300"
+                        >
                             <Folder className="h-4 w-4 mr-2 transition-colors duration-300" />
-                            Select Folder
+                            Choose a folder
                         </label>
                     </Button>
                 </div>
 
                 <div className="mt-8 text-xs text-muted-foreground/70 transition-colors duration-300">
-                    Supports text files • Respects .gitignore • Processed locally
+                    Text files supported • Respects .gitignore • Analyzed locally
                 </div>
             </div>
         </div>
