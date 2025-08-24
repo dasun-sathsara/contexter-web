@@ -325,12 +325,6 @@ export const useFileStore = create<FileState>()(
           const filesWithPath = files as FileWithPath[];
           const firstPath = filesWithPath[0]?.webkitRelativePath;
 
-          if (!firstPath) {
-            toast.error("Could not process files.", { description: "The dropped items don't appear to be a folder." });
-            set({ isLoading: false, statusMessage: 'Error: Not a valid folder.' });
-            return;
-          }
-
           pendingFiles = filesWithPath;
 
           const gitignoreFile = filesWithPath.find((f) => f.webkitRelativePath.endsWith('.gitignore'));
@@ -370,12 +364,6 @@ export const useFileStore = create<FileState>()(
           }).filter(Boolean) as FileWithPath[];
 
           const firstPath = filesWithPath[0]?.webkitRelativePath;
-
-          if (!firstPath) {
-            toast.error("Could not process files.", { description: "The dropped items don't appear to be a folder." });
-            set({ isLoading: false, statusMessage: 'Error: Not a valid folder.' });
-            return;
-          }
 
           pendingFiles = filesWithPath;
 
