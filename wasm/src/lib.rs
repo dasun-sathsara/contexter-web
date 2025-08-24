@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-use std::sync::OnceLock;
-use wasm_bindgen::prelude::*;
+use crate::utils::{extract_file_name, normalize_path, set_panic_hook};
 use ignore::gitignore::GitignoreBuilder;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::OnceLock;
 use tiktoken_rs::{cl100k_base, CoreBPE};
-use crate::utils::{extract_file_name, normalize_path, set_panic_hook};
+use wasm_bindgen::prelude::*;
 
 mod utils;
 
@@ -61,8 +61,12 @@ pub struct FilterOptions {
     #[serde(default = "default_max_file_size")]
     pub max_file_size: u32,
 }
-fn default_true() -> bool { true }
-fn default_max_file_size() -> u32 { 2 * 1024 * 1024 }
+fn default_true() -> bool {
+    true
+}
+fn default_max_file_size() -> u32 {
+    2 * 1024 * 1024
+}
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ProcessingOptions {
@@ -79,11 +83,67 @@ pub struct MarkdownOptions {
 }
 
 static TEXT_EXTENSIONS: &[&str] = &[
-    "js", "ts", "tsx", "jsx", "json", "md", "mdx", "html", "css", "scss", "sass", "less", "styl", "postcss",
-    "py", "pyi", "rb", "php", "sh", "bash", "zsh", "ps1", "bat", "cmd", "rs", "go", "java", "c", "cpp", "h", "hpp", "cs",
-    "txt", "yml", "yaml", "xml", "toml", "ini", "cfg", "conf", "config", "env", "mod", "sum", "lock",
-    "dockerfile", "gitignore", "gitattributes", "editorconfig", "prettierrc", "eslintrc",
-    "sql", "graphql", "gql", "vue", "svelte", "astro", "mjs", "cjs", "mts", "cts"
+    "js",
+    "ts",
+    "tsx",
+    "jsx",
+    "json",
+    "md",
+    "mdx",
+    "html",
+    "css",
+    "scss",
+    "sass",
+    "less",
+    "styl",
+    "postcss",
+    "py",
+    "pyi",
+    "rb",
+    "php",
+    "sh",
+    "bash",
+    "zsh",
+    "ps1",
+    "bat",
+    "cmd",
+    "rs",
+    "go",
+    "java",
+    "c",
+    "cpp",
+    "h",
+    "hpp",
+    "cs",
+    "txt",
+    "yml",
+    "yaml",
+    "xml",
+    "toml",
+    "ini",
+    "cfg",
+    "conf",
+    "config",
+    "env",
+    "mod",
+    "sum",
+    "lock",
+    "dockerfile",
+    "gitignore",
+    "gitattributes",
+    "editorconfig",
+    "prettierrc",
+    "eslintrc",
+    "sql",
+    "graphql",
+    "gql",
+    "vue",
+    "svelte",
+    "astro",
+    "mjs",
+    "cjs",
+    "mts",
+    "cts",
 ];
 
 static SPECIAL_FILENAMES: &[&str] = &["dockerfile", "makefile", "license", "readme"];
@@ -94,11 +154,11 @@ fn is_likely_text_file(path: &str) -> bool {
             return true;
         }
     }
-    
+
     if let Some(filename) = path.rsplit('/').next() {
         return SPECIAL_FILENAMES.contains(&filename.to_lowercase().as_str());
     }
-    
+
     false
 }
 
@@ -123,7 +183,9 @@ pub fn filter_files(
             continue;
         }
         if let Err(e) = gitignore_builder.add_line(None, line) {
-            web_sys::console::warn_1(&format!("Invalid gitignore pattern on line {}: {}", idx + 1, e).into());
+            web_sys::console::warn_1(
+                &format!("Invalid gitignore pattern on line {}: {}", idx + 1, e).into(),
+            );
         }
     }
     let gitignore = gitignore_builder
@@ -134,25 +196,28 @@ pub fn filter_files(
         .into_iter()
         .filter_map(|meta| {
             let is_dir = meta.path.ends_with('/');
-            
+
             let relative_path = if let Some(first_slash) = meta.path.find('/') {
                 &meta.path[first_slash + 1..]
             } else {
                 &meta.path
             };
-            
+
             if relative_path.is_empty() {
                 return None;
             }
-            
-            if gitignore.matched_path_or_any_parents(relative_path, is_dir).is_ignore() {
+
+            if gitignore
+                .matched_path_or_any_parents(relative_path, is_dir)
+                .is_ignore()
+            {
                 return None;
             }
 
             if is_dir {
                 return Some(meta.path);
             }
-            
+
             if meta.size > options.max_file_size {
                 return None;
             }
@@ -160,11 +225,11 @@ pub fn filter_files(
             if options.text_only && !is_likely_text_file(relative_path) {
                 return None;
             }
-            
+
             Some(meta.path)
         })
         .collect();
-    
+
     let processing_time = js_sys::Date::now() - start_time;
     let result = FilterResult {
         paths: kept_paths,
@@ -194,34 +259,51 @@ pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, 
         total_size += size;
 
         let tokens = if options.show_token_count {
-            get_encoder().encode_with_special_tokens(&file.content).len() as u32
+            get_encoder()
+                .encode_with_special_tokens(&file.content)
+                .len() as u32
         } else {
             0
         };
         total_tokens += tokens;
 
-        nodes.insert(path.clone(), FileNode {
-            path: path.clone(),
-            name: extract_file_name(&path),
-            is_dir: false,
-            token_count: if options.show_token_count { Some(tokens) } else { None },
-            children: vec![],
-            size: Some(size),
-        });
+        nodes.insert(
+            path.clone(),
+            FileNode {
+                path: path.clone(),
+                name: extract_file_name(&path),
+                is_dir: false,
+                token_count: if options.show_token_count {
+                    Some(tokens)
+                } else {
+                    None
+                },
+                children: vec![],
+                size: Some(size),
+            },
+        );
 
         let mut parent_path = std::path::Path::new(&path).parent();
         while let Some(p) = parent_path {
-            if p.to_str().unwrap_or("").is_empty() { break; }
+            if p.to_str().unwrap_or("").is_empty() {
+                break;
+            }
             let parent_path_str = normalize_path(p.to_str().unwrap());
-            
-            nodes.entry(parent_path_str.clone()).or_insert_with(|| FileNode {
-                path: parent_path_str.clone(),
-                name: extract_file_name(&parent_path_str),
-                is_dir: true,
-                token_count: if options.show_token_count { Some(0) } else { None },
-                children: vec![],
-                size: Some(0),
-            });
+
+            nodes
+                .entry(parent_path_str.clone())
+                .or_insert_with(|| FileNode {
+                    path: parent_path_str.clone(),
+                    name: extract_file_name(&parent_path_str),
+                    is_dir: true,
+                    token_count: if options.show_token_count {
+                        Some(0)
+                    } else {
+                        None
+                    },
+                    children: vec![],
+                    size: Some(0),
+                });
             parent_path = p.parent();
         }
     }
@@ -232,31 +314,35 @@ pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, 
 
     for key in &node_keys {
         if let Some(node) = nodes.remove(key) {
-            let parent_path_opt = std::path::Path::new(key).parent()
+            let parent_path_opt = std::path::Path::new(key)
+                .parent()
                 .and_then(|p| p.to_str())
                 .map(normalize_path);
 
             if let Some(parent_path) = parent_path_opt {
-                 if !parent_path.is_empty() {
+                if !parent_path.is_empty() {
                     if let Some(parent_node) = nodes.get_mut(&parent_path) {
                         if options.show_token_count {
-                            parent_node.token_count = parent_node.token_count.zip(node.token_count).map(|(a,b)| a+b);
+                            parent_node.token_count = parent_node
+                                .token_count
+                                .zip(node.token_count)
+                                .map(|(a, b)| a + b);
                         }
-                        parent_node.size = parent_node.size.zip(node.size).map(|(a,b)| a+b);
+                        parent_node.size = parent_node.size.zip(node.size).map(|(a, b)| a + b);
                         parent_node.children.push(node);
                         continue;
                     }
-                 }
+                }
             }
             root_nodes.push(node);
         }
     }
-    
+
     fn finalise_tree(nodes: &mut Vec<FileNode>, options: &ProcessingOptions) {
         if options.hide_empty_folders {
             nodes.retain(|node| !node.is_dir || !node.children.is_empty());
         }
-        
+
         nodes.sort_by(|a, b| {
             if a.is_dir != b.is_dir {
                 b.is_dir.cmp(&a.is_dir)
@@ -271,7 +357,7 @@ pub fn process_files(files_js: JsValue, options_js: JsValue) -> Result<JsValue, 
             }
         }
     }
-    
+
     finalise_tree(&mut root_nodes, &options);
 
     let result = ProcessingResult {
@@ -298,7 +384,7 @@ fn recursively_update_counts(node: &mut FileNode, show_token_count: bool) -> (u6
     for child in &mut node.children {
         let (child_size, child_tokens) = recursively_update_counts(child, show_token_count);
         total_size += child_size;
-        
+
         if let (Some(tokens), Some(child_t)) = (total_tokens.as_mut(), child_tokens) {
             *tokens += child_t;
         }
@@ -313,11 +399,11 @@ fn recursively_update_counts(node: &mut FileNode, show_token_count: bool) -> (u6
 #[wasm_bindgen]
 pub fn recalculate_counts(tree_js: JsValue, options_js: JsValue) -> Result<JsValue, JsValue> {
     set_panic_hook();
-    
+
     let mut tree: Vec<FileNode> = serde_wasm_bindgen::from_value(tree_js)
         .map_err(|e| JsValue::from_str(&format!("Failed to parse file tree: {}", e)))?;
-    let options: ProcessingOptions = serde_wasm_bindgen::from_value(options_js)
-        .unwrap_or_else(|_| ProcessingOptions::default());
+    let options: ProcessingOptions =
+        serde_wasm_bindgen::from_value(options_js).unwrap_or_else(|_| ProcessingOptions::default());
 
     for node in &mut tree {
         recursively_update_counts(node, options.show_token_count);
@@ -333,8 +419,10 @@ pub fn merge_files_to_markdown(files_js: JsValue, options_js: JsValue) -> Result
     let files: Vec<FileInput> = serde_wasm_bindgen::from_value(files_js)
         .map_err(|e| JsValue::from_str(&format!("Failed to parse files: {}", e)))?;
     let options: MarkdownOptions = serde_wasm_bindgen::from_value(options_js).unwrap_or_default();
-    
-    if files.is_empty() { return Ok(String::new()); }
+
+    if files.is_empty() {
+        return Ok(String::new());
+    }
 
     let mut output = String::new();
     for file in files {
@@ -379,6 +467,12 @@ fn detect_language(path: &str) -> &'static str {
         "sql" => "sql",
         "md" | "mdx" => "markdown",
         "dockerfile" => "dockerfile",
-        _ => if path.to_lowercase().ends_with("makefile") { "makefile" } else { "" }
+        _ => {
+            if path.to_lowercase().ends_with("makefile") {
+                "makefile"
+            } else {
+                ""
+            }
+        }
     }
 }

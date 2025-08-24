@@ -3,125 +3,126 @@ import type { FileInput } from '@/lib/types';
 type FileWithPath = File & { webkitRelativePath: string };
 
 interface ReadFilesMessage {
-    type: 'read-files';
-    payload: {
-        files: FileWithPath[];
-        pathsToRead: string[];
-        processingWorkerPort?: MessagePort;
-    };
+  type: 'read-files';
+  payload: {
+    files: { file: FileWithPath, path: string }[];
+    pathsToRead: string[];
+    processingWorkerPort?: MessagePort;
+  };
 }
 
 interface ReadCompleteMessage {
-    type: 'read-complete';
-    payload: {
-        fileInputs: FileInput[];
-        rootFileContents: Map<string, string>;
-    };
+  type: 'read-complete';
+  payload: {
+    fileInputs: FileInput[];
+    rootFileContents: Map<string, string>;
+  };
 }
 
 interface ReadProgressMessage {
-    type: 'read-progress';
-    payload: {
-        processed: number;
-        total: number;
-        message: string;
-    };
+  type: 'read-progress';
+  payload: {
+    processed: number;
+    total: number;
+    message: string;
+  };
 }
 
 interface ReadErrorMessage {
-    type: 'read-error';
-    payload: string;
+  type: 'read-error';
+  payload: string;
 }
 
 self.onmessage = async (event: MessageEvent<ReadFilesMessage>) => {
-    const { type, payload } = event.data;
+  const { type, payload } = event.data;
 
-    if (type !== 'read-files') {
-        console.warn('[FileReader Worker] Received unknown message type:', type);
-        return;
-    }
+  if (type !== 'read-files') {
+    console.warn('[FileReader Worker] Received unknown message type:', type);
+    return;
+  }
 
-    try {
-        const { files, pathsToRead, processingWorkerPort } = payload;
+  try {
+    const { files, pathsToRead, processingWorkerPort } = payload;
 
-        console.log(`[FileReader Worker] Starting to read ${pathsToRead.length} files...`);
+    console.log("File Reader Worker's Files: ", files)
 
-        // Create a map for quick file lookup
-        const fileMap = new Map(files.map((f) => [f.webkitRelativePath, f]));
-        const fileInputs: FileInput[] = [];
-        const rootFileContents = new Map<string, string>();
+    // Create a map for quick file lookup
+    const fileMap = new Map(files.map((f) => [f.path, f.file]));
 
-        // Read files in batches to avoid overwhelming the worker
-        const BATCH_SIZE = 50;
-        let processedCount = 0;
+    const fileInputs: FileInput[] = [];
+    const rootFileContents = new Map<string, string>();
 
-        for (let i = 0; i < pathsToRead.length; i += BATCH_SIZE) {
-            const batch = pathsToRead.slice(i, i + BATCH_SIZE);
+    // Read files in batches to avoid overwhelming the worker
+    const BATCH_SIZE = 50;
+    let processedCount = 0;
 
-            const batchPromises = batch.map(async (path) => {
-                const file = fileMap.get(path);
-                if (file) {
-                    try {
-                        const content = await file.text();
-                        // Check for binary content by looking for replacement characters
-                        if (!content.includes('\uFFFD')) {
-                            fileInputs.push({ path, content });
-                            rootFileContents.set(path, content);
-                        }
-                    } catch (e) {
-                        console.warn(`[FileReader Worker] Could not read file: ${path}`, e);
-                    }
-                }
-            });
+    for (let i = 0; i < pathsToRead.length; i += BATCH_SIZE) {
+      const batch = pathsToRead.slice(i, i + BATCH_SIZE);
 
-            await Promise.all(batchPromises);
-            processedCount += batch.length;
-
-            // Report progress to main thread
-            const progressMessage: ReadProgressMessage = {
-                type: 'read-progress',
-                payload: {
-                    processed: processedCount,
-                    total: pathsToRead.length,
-                    message: `Reading files... (${processedCount}/${pathsToRead.length})`
-                }
-            };
-            self.postMessage(progressMessage);
-        }
-
-        console.log(`[FileReader Worker] Successfully read ${fileInputs.length} text files`);
-
-        // Send results back to main thread
-        const result: ReadCompleteMessage = {
-            type: 'read-complete',
-            payload: {
-                fileInputs,
-                rootFileContents
+      const batchPromises = batch.map(async (path) => {
+        const file = fileMap.get(path);
+        if (file) {
+          try {
+            const content = await file.text();
+            // Check for binary content by looking for replacement characters
+            if (!content.includes('\uFFFD')) {
+              fileInputs.push({ path, content });
+              rootFileContents.set(path, content);
             }
-        };
-
-        self.postMessage(result);
-
-        // If we have a processing worker port, send files directly to processing worker
-        if (processingWorkerPort) {
-            console.log('[FileReader Worker] Forwarding files to processing worker...');
-            processingWorkerPort.postMessage({
-                type: 'process-files-direct',
-                payload: { fileInputs }
-            });
+          } catch (e) {
+            console.warn(`[FileReader Worker] Could not read file: ${path}`, e);
+          }
         }
+      });
 
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error('[FileReader Worker] Error reading files:', error);
+      await Promise.all(batchPromises);
+      processedCount += batch.length;
 
-        const errorResult: ReadErrorMessage = {
-            type: 'read-error',
-            payload: errorMessage
-        };
-
-        self.postMessage(errorResult);
+      // Report progress to main thread
+      const progressMessage: ReadProgressMessage = {
+        type: 'read-progress',
+        payload: {
+          processed: processedCount,
+          total: pathsToRead.length,
+          message: `Reading files... (${processedCount}/${pathsToRead.length})`
+        }
+      };
+      self.postMessage(progressMessage);
     }
+
+    console.log(`[FileReader Worker] Successfully read ${fileInputs.length} text files`);
+
+    // Send results back to main thread
+    const result: ReadCompleteMessage = {
+      type: 'read-complete',
+      payload: {
+        fileInputs,
+        rootFileContents
+      }
+    };
+
+    self.postMessage(result);
+
+    // If we have a processing worker port, send files directly to processing worker
+    if (processingWorkerPort) {
+      console.log('[FileReader Worker] Forwarding files to processing worker...');
+      processingWorkerPort.postMessage({
+        type: 'process-files-direct',
+        payload: { fileInputs }
+      });
+    }
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[FileReader Worker] Error reading files:', error);
+
+    const errorResult: ReadErrorMessage = {
+      type: 'read-error',
+      payload: errorMessage
+    };
+
+    self.postMessage(errorResult);
+  }
 };
 
 console.log('[FileReader Worker] File reader worker loaded and ready.');

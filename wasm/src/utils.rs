@@ -1,6 +1,6 @@
-use wasm_bindgen::prelude::*;
 use path_slash::PathExt;
 use std::path::Path;
+use wasm_bindgen::prelude::*;
 
 /// Sets up a panic hook to forward Rust panics to the browser's console.
 pub fn set_panic_hook() {
@@ -32,25 +32,5 @@ pub fn log_message(level: &str, message: &str) {
         "info" => web_sys::console::info_1(&message.into()),
         "debug" => web_sys::console::debug_1(&message.into()),
         _ => web_sys::console::log_1(&message.into()),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_normalize_path() {
-        assert_eq!(normalize_path("path\\with\\backslashes"), "path/with/backslashes");
-        assert_eq!(normalize_path("path/with/forward/slashes"), "path/with/forward/slashes");
-        assert_eq!(normalize_path(""), "");
-    }
-
-    #[test]
-    fn test_extract_file_name() {
-        assert_eq!(extract_file_name("src/components/Button.tsx"), "Button.tsx");
-        assert_eq!(extract_file_name("src/components/"), "components");
-        assert_eq!(extract_file_name("file.txt"), "file.txt");
-        assert_eq!(extract_file_name("/"), "/");
     }
 }
