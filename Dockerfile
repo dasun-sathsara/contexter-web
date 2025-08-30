@@ -34,6 +34,9 @@ COPY --from=wasm-builder /app/wasm/pkg ./wasm/pkg
 # Set a build-time argument for the Next.js public host
 ARG NEXT_PUBLIC_HOST
 
+# Set the environment variable for the Next.js public host
+ENV NEXT_PUBLIC_HOST=$NEXT_PUBLIC_HOST
+
 # Build the Next.js application. The `copy-wasm` script is run automatically by the build command.
 RUN npm run build
 
