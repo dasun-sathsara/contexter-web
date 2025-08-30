@@ -109,6 +109,7 @@ export const useFileStore = create<FileState>()(
 
       // Set up processing worker message handler
       const processingWorkerInstance = getProcessingWorker();
+
       if (processingWorkerInstance) {
         processingWorkerInstance.onmessage = (event: MessageEvent) => {
           const { type, payload } = event.data;

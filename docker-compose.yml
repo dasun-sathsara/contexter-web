@@ -1,0 +1,10 @@
+services:
+    contexter-web:
+        build:
+            context: .
+            args:
+                - NEXT_PUBLIC_HOST=https://contexter.dasunsathsara.com
+        container_name: contexter-web
+        ports:
+            - '3000:3000'
+        restart: unless-stopped
