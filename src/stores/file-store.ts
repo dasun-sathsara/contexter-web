@@ -31,6 +31,79 @@ const getReaderWorker = (): Worker | null => {
 };
 
 /**
+ * Builds a combined gitignore content string from ALL .gitignore files in the
+ * uploaded directory, prefixing each rule with the directory path relative to
+ * the selected root. This approximates native .gitignore scoping semantics.
+**/
+
+const buildCombinedGitignoreContent = async (
+  files: FileWithPath[],
+  rootPrefix: string
+): Promise<string> => {
+  const gitignoreFiles = files.filter((f) =>
+    f.webkitRelativePath.endsWith('.gitignore')
+  );
+  if (gitignoreFiles.length === 0) return '';
+
+  const combined: string[] = [];
+
+  const getRelativeDir = (fullPath: string): string => {
+    const rel = fullPath.startsWith(rootPrefix)
+      ? fullPath.slice(rootPrefix.length)
+      : fullPath;
+    const lastSlash = rel.lastIndexOf('/');
+    return lastSlash === -1 ? '' : rel.slice(0, lastSlash);
+  };
+
+  for (const file of gitignoreFiles) {
+    let content = '';
+    try {
+      content = await file.text();
+    } catch {
+      continue;
+    }
+
+    const dirRel = getRelativeDir(file.webkitRelativePath);
+    const basePrefix = dirRel ? `/${dirRel}/` : '/';
+
+    const lines = content.split(/\r?\n/);
+    for (let raw of lines) {
+      let line = raw.trim();
+      if (!line || line.startsWith('#')) continue;
+
+      if (line.startsWith('\\#')) {
+        line = line.slice(1);
+      }
+
+      let isNegated = false;
+      if (line.startsWith('!')) {
+        isNegated = true;
+        line = line.slice(1).trim();
+      }
+
+      if (line.startsWith('./')) {
+        line = line.slice(2);
+      }
+
+      if (line.startsWith('/')) {
+        line = line.slice(1);
+      }
+
+      let normalized = basePrefix + line;
+      normalized = normalized.replace(/\/{2,}/g, '/');
+
+      if (isNegated) {
+        normalized = '!' + normalized;
+      }
+
+      combined.push(normalized);
+    }
+  }
+
+  return combined.join('\n');
+};
+
+/**
  * Module-level variable to hold File objects between filtering and reading steps.
  * This avoids passing the full File list to/from the worker.
  */
@@ -117,6 +190,8 @@ export const useFileStore = create<FileState>()(
           switch (type) {
             case 'filter-complete': {
               if (payload && Array.isArray(payload.paths) && payload.paths.length > 0) {
+                console.log('Filter complete');
+                console.log('Paths to read:', payload.paths);
                 _readAndProcessFiles(payload.paths);
               } else {
                 toast.error("No files found to process.");
@@ -328,11 +403,16 @@ export const useFileStore = create<FileState>()(
 
           pendingFiles = filesWithPath;
 
-          const gitignoreFile = filesWithPath.find((f) => f.webkitRelativePath.endsWith('.gitignore'));
-          const gitignoreContent = gitignoreFile ? await gitignoreFile.text() : '';
           const rootPrefix = firstPath.substring(0, firstPath.indexOf('/') + 1);
 
+          const gitignoreContent = await buildCombinedGitignoreContent(
+            filesWithPath,
+            rootPrefix
+          );
+
           const metadata: FileMetadata[] = filesWithPath.map((f) => ({ path: f.webkitRelativePath, size: f.size }));
+
+          console.log('Gitignore Content: ', gitignoreContent);
 
           getProcessingWorker()?.postMessage({
             type: 'filter-files',
