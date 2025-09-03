@@ -332,18 +332,6 @@ export const useFileStore = create<FileState>()(
               set({ statusMessage: payload.message });
               break;
             }
-            case 'read-complete': {
-              const { fileInputs, rootFileContents } = payload as { fileInputs: FileInput[]; rootFileContents: Map<string, string> };
-              set({
-                rootFiles: rootFileContents,
-                statusMessage: `Processing ${fileInputs.length} text files...`
-              });
-              getProcessingWorker()?.postMessage({
-                type: 'process-files',
-                payload: { files: fileInputs, settings: get().settings }
-              });
-              break;
-            }
             case 'read-error': {
               set({ isLoading: false, statusMessage: `Error: ${payload}` });
               toast.error("An error occurred while reading files.", { description: payload });
@@ -633,10 +621,21 @@ export const useFileStore = create<FileState>()(
             set({ isLoading: true, statusMessage: 'Selecting folder...', fileTree: [], fileMap: new Map() });
             const handle: FileSystemDirectoryHandle = await (window as any).showDirectoryPicker({ mode: 'read' });
             set({ statusMessage: 'Scanning project files...' });
-            getDirectoryWorker()?.postMessage({
+
+            // Bridge directory worker to reader worker via MessageChannel
+            const rw = getReaderWorker();
+            const dw = getDirectoryWorker();
+            if (!rw || !dw) {
+              set({ isLoading: false, statusMessage: 'Error: Workers not available.' });
+              toast.error('Failed to initialize workers.');
+              return;
+            }
+            const channel = new MessageChannel();
+            rw.postMessage({ type: 'connect-port', payload: { port: channel.port1 } }, [channel.port1]);
+            dw.postMessage({
               type: 'traverse-directory',
-              payload: { rootHandle: handle, settings: get().settings }
-            });
+              payload: { rootHandle: handle, settings: get().settings, readerPort: channel.port2 }
+            }, [channel.port2]);
           } catch (err) {
             const e = err as { name?: string };
             if (e && e.name === 'AbortError') {
