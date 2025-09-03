@@ -14,6 +14,7 @@ enableMapSet();
 
 let processingWorker: Worker | null = null;
 let readerWorker: Worker | null = null;
+let directoryWorker: Worker | null = null;
 
 const getProcessingWorker = (): Worker | null => {
   if (typeof window === 'undefined') return null;
@@ -29,6 +30,14 @@ const getReaderWorker = (): Worker | null => {
     readerWorker = new Worker(new URL('../workers/file-reader.worker.ts', import.meta.url));
   }
   return readerWorker;
+};
+
+const getDirectoryWorker = (): Worker | null => {
+  if (typeof window === 'undefined') return null;
+  if (!directoryWorker) {
+    directoryWorker = new Worker(new URL('../workers/directory-traverser.worker.ts', import.meta.url));
+  }
+  return directoryWorker;
 };
 
 
@@ -70,6 +79,7 @@ interface FileState {
   deleteSelected: (pathsToDelete?: Set<string>) => void;
   openPreview: (path: string) => void;
   closePreview: () => void;
+  selectFolder: () => Promise<void>;
 }
 
 const defaultSettings: Settings = {
@@ -306,6 +316,37 @@ export const useFileStore = create<FileState>()(
               set({ isLoading: false, statusMessage: `Error: ${payload}` });
               toast.error("An error occurred while reading files.", { description: payload });
               pendingFiles = null;
+              break;
+            }
+          }
+        };
+      }
+
+      // Set up directory traverser worker message handler
+      const directoryWorkerInstance = getDirectoryWorker();
+      if (directoryWorkerInstance) {
+        directoryWorkerInstance.onmessage = (event: MessageEvent) => {
+          const { type, payload } = event.data as { type: string; payload: any };
+          switch (type) {
+            case 'read-progress': {
+              set({ statusMessage: payload.message });
+              break;
+            }
+            case 'read-complete': {
+              const { fileInputs, rootFileContents } = payload as { fileInputs: FileInput[]; rootFileContents: Map<string, string> };
+              set({
+                rootFiles: rootFileContents,
+                statusMessage: `Processing ${fileInputs.length} text files...`
+              });
+              getProcessingWorker()?.postMessage({
+                type: 'process-files',
+                payload: { files: fileInputs, settings: get().settings }
+              });
+              break;
+            }
+            case 'read-error': {
+              set({ isLoading: false, statusMessage: `Error: ${payload}` });
+              toast.error("An error occurred while reading files.", { description: payload });
               break;
             }
           }
@@ -582,6 +623,31 @@ export const useFileStore = create<FileState>()(
           }
         },
         closePreview: () => set({ previewedFilePath: null }),
+
+        selectFolder: async () => {
+          try {
+            if (typeof (window as any).showDirectoryPicker !== 'function') {
+              toast.error('Folder selection not supported in this browser.');
+              return;
+            }
+            set({ isLoading: true, statusMessage: 'Selecting folder...', fileTree: [], fileMap: new Map() });
+            const handle: FileSystemDirectoryHandle = await (window as any).showDirectoryPicker({ mode: 'read' });
+            set({ statusMessage: 'Scanning project files...' });
+            getDirectoryWorker()?.postMessage({
+              type: 'traverse-directory',
+              payload: { rootHandle: handle, settings: get().settings }
+            });
+          } catch (err) {
+            const e = err as { name?: string };
+            if (e && e.name === 'AbortError') {
+              set({ isLoading: false, statusMessage: 'Ready. Drop a folder to get started.' });
+              toast.info('Folder selection canceled.');
+              return;
+            }
+            set({ isLoading: false, statusMessage: 'Error: Failed to open folder.' });
+            toast.error('Failed to open folder.');
+          }
+        },
       };
     }),
     {
