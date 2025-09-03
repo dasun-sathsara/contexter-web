@@ -3,30 +3,15 @@
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useFileStore } from '@/stores/file-store';
-import { UploadCloud, Folder } from 'lucide-react';
+import { UploadCloud } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from './ui/button';
-import { LoadingOverlay } from './loading-overlay';
+import { LoadingOverlay } from '@/components/loading-overlay';
 
 export function DropZone() {
-  const { processFiles, processDroppedFiles, isLoading, statusMessage } = useFileStore();
+  const { processDroppedFiles, isLoading, statusMessage } = useFileStore();
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
-      console.log('[DropZone] Files dropped:', acceptedFiles);
-      console.log('[DropZone] Drop event data details:', {
-        fileCount: acceptedFiles.length,
-        files: acceptedFiles.map(file => ({
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          lastModified: file.lastModified,
-          webkitRelativePath: file.webkitRelativePath || 'N/A',
-          path: (file as File & { path?: string }).path || 'N/A'
-        }))
-      });
-
-      // Use the specialized method for dropped files to avoid expensive normalization
       processDroppedFiles(acceptedFiles);
     },
     [processDroppedFiles]
@@ -37,13 +22,6 @@ export function DropZone() {
     noClick: true,
   });
 
-  const handleFolderSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      const filesArray = Array.from(event.target.files);
-      console.log('[DropZone] Folder selected:', filesArray);
-      processFiles(filesArray);
-    }
-  };
 
   return (
     <div
@@ -62,14 +40,6 @@ export function DropZone() {
       )}
     >
       <input {...getInputProps()} />
-      <input
-        type="file"
-        id="folder-upload"
-        webkitdirectory=""
-        multiple
-        style={{ display: 'none' }}
-        onChange={handleFolderSelect}
-      />
 
       {isLoading && (
         <LoadingOverlay
@@ -105,18 +75,6 @@ export function DropZone() {
             ? 'Release to begin processing'
             : 'Drag and drop your project files, or choose a folder to analyze'}
         </p>
-
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Button variant="outline" asChild>
-            <label
-              htmlFor="folder-upload"
-              className="cursor-pointer transition-colors duration-300"
-            >
-              <Folder className="h-4 w-4 mr-2 transition-colors duration-300" />
-              Choose a folder
-            </label>
-          </Button>
-        </div>
 
         <div className="mt-8 text-xs text-muted-foreground/70 transition-colors duration-300">
           Text files supported • Respects .gitignore • Analyzed locally
