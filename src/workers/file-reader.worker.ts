@@ -1,6 +1,6 @@
 import type { FileInput } from '@/lib/types';
+import { FileWithPath } from 'react-dropzone';
 
-type FileWithPath = File & { webkitRelativePath: string };
 
 interface ReadFilesMessage {
   type: 'read-files';

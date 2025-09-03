@@ -5,9 +5,9 @@ import { cn } from '@/lib/utils';
 import { Zap, CheckCircle, Command, Info } from 'lucide-react';
 
 export function StatusBar() {
-  const { vimMode, statusMessage, selectedPaths, settings } = useFileStore();
+  const { vimMode: keybindingMode, statusMessage, selectedPaths, settings } = useFileStore();
 
-  const vimModeText = vimMode === 'visual' ? 'VISUAL' : 'NORMAL';
+  const vimModeText = keybindingMode === 'visual' ? 'VISUAL' : 'NORMAL';
   const selectionText = selectedPaths.size > 0 ? `${selectedPaths.size} selected` : '';
 
   return (
@@ -20,7 +20,7 @@ export function StatusBar() {
               <span
                 className={cn(
                   'font-medium px-2 py-0.5 rounded text-xs uppercase tracking-wide transition-colors duration-300',
-                  vimMode === 'visual'
+                  keybindingMode === 'visual'
                     ? 'bg-red-500/10 text-red-600 dark:text-red-400'
                     : 'bg-green-500/10 text-green-600 dark:text-green-400'
                 )}

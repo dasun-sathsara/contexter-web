@@ -12,7 +12,7 @@ ENV PATH="/root/.cargo/bin:/usr/local/cargo/bin:${PATH}"
 
 WORKDIR /app
 
-# Copy only the wasm source and build it. 
+# Copy only the wasm source and build it.
 COPY ./wasm ./wasm
 RUN wasm-pack build ./wasm --target web --out-dir pkg
 
