@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 
 enableMapSet();
 
-type FileWithPath = File & { webkitRelativePath: string };
+type FileWithPath = File & { path: string };
 
 // --- Worker Management ---
 
@@ -38,22 +38,13 @@ const getReaderWorker = (): Worker | null => {
 
 const buildCombinedGitignoreContent = async (
   files: FileWithPath[],
-  rootPrefix: string
 ): Promise<string> => {
   const gitignoreFiles = files.filter((f) =>
-    f.webkitRelativePath.endsWith('.gitignore')
+    f.path.endsWith('.gitignore')
   );
   if (gitignoreFiles.length === 0) return '';
 
   const combined: string[] = [];
-
-  const getRelativeDir = (fullPath: string): string => {
-    const rel = fullPath.startsWith(rootPrefix)
-      ? fullPath.slice(rootPrefix.length)
-      : fullPath;
-    const lastSlash = rel.lastIndexOf('/');
-    return lastSlash === -1 ? '' : rel.slice(0, lastSlash);
-  };
 
   for (const file of gitignoreFiles) {
     let content = '';
@@ -63,11 +54,11 @@ const buildCombinedGitignoreContent = async (
       continue;
     }
 
-    const dirRel = getRelativeDir(file.webkitRelativePath);
+    const dirRel = file.path;
     const basePrefix = dirRel ? `/${dirRel}/` : '/';
 
     const lines = content.split(/\r?\n/);
-    for (let raw of lines) {
+    for (const raw of lines) {
       let line = raw.trim();
       if (!line || line.startsWith('#')) continue;
 
@@ -126,8 +117,7 @@ interface FileState {
   visualAnchorPath: string | null;
   previewedFilePath: string | null;
 
-  processFiles: (files: File[]) => Promise<void>;
-  processDroppedFiles: (files: File[]) => Promise<void>;
+  processDroppedFiles: (files: FileWithPath[]) => Promise<void>;
   reprocessFiles: () => Promise<void>;
   setSettings: (newSettings: Partial<Settings>) => void;
   clearAll: () => void;
@@ -174,7 +164,7 @@ export const useFileStore = create<FileState>()(
         getReaderWorker()?.postMessage({
           type: 'read-files',
           payload: {
-            files: pendingFiles.map(file => ({ file, path: file.webkitRelativePath })),
+            files: pendingFiles.map(file => ({ file, path: file.path })),
             pathsToRead: pathsToRead
           }
         });
@@ -190,8 +180,7 @@ export const useFileStore = create<FileState>()(
           switch (type) {
             case 'filter-complete': {
               if (payload && Array.isArray(payload.paths) && payload.paths.length > 0) {
-                console.log('Filter complete');
-                console.log('Paths to read:', payload.paths);
+                console.log('filter-complete:', payload);
                 _readAndProcessFiles(payload.paths);
               } else {
                 toast.error("No files found to process.");
@@ -393,70 +382,21 @@ export const useFileStore = create<FileState>()(
         vimMode: 'normal', selectedPaths: new Set(), cursorPath: null, visualAnchorPath: null,
         previewedFilePath: null,
 
-        processFiles: async (files: File[]) => {
+        processDroppedFiles: async (files: FileWithPath[]) => {
           if (!files || files.length === 0) return;
 
           set({ isLoading: true, statusMessage: 'Analyzing project structure...', fileTree: [], fileMap: new Map() });
-
-          const filesWithPath = files as FileWithPath[];
-          const firstPath = filesWithPath[0]?.webkitRelativePath;
-
-          pendingFiles = filesWithPath;
-
-          const rootPrefix = firstPath.substring(0, firstPath.indexOf('/') + 1);
+          pendingFiles = files;
 
           const gitignoreContent = await buildCombinedGitignoreContent(
-            filesWithPath,
-            rootPrefix
+            files,
           );
 
-          const metadata: FileMetadata[] = filesWithPath.map((f) => ({ path: f.webkitRelativePath, size: f.size }));
-
-          console.log('Gitignore Content: ', gitignoreContent);
+          const metadata: FileMetadata[] = files.map((f) => ({ path: f.path.slice(2), size: f.size }));
 
           getProcessingWorker()?.postMessage({
             type: 'filter-files',
-            payload: { metadata, gitignoreContent, rootPrefix, settings: get().settings }
-          });
-        },
-
-        processDroppedFiles: async (files: File[]) => {
-          if (!files || files.length === 0) return;
-
-          set({ isLoading: true, statusMessage: 'Analyzing project structure...', fileTree: [], fileMap: new Map() });
-
-          // For dropped files, we use the 'path' property instead of 'webkitRelativePath'
-          const filesWithPath = files.map(file => {
-            const filePath = (file as File & { path?: string }).path;
-            if (!filePath) return null;
-
-            // Convert path to webkitRelativePath format (remove leading slash)
-            const normalizedPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
-
-            // Add webkitRelativePath property to the original file object
-            Object.defineProperty(file, 'webkitRelativePath', {
-              value: normalizedPath,
-              writable: false,
-              enumerable: true,
-              configurable: false
-            });
-
-            return file as FileWithPath;
-          }).filter(Boolean) as FileWithPath[];
-
-          const firstPath = filesWithPath[0]?.webkitRelativePath;
-
-          pendingFiles = filesWithPath;
-
-          const gitignoreFile = filesWithPath.find((f) => f.webkitRelativePath.endsWith('.gitignore'));
-          const gitignoreContent = gitignoreFile ? await gitignoreFile.text() : '';
-          const rootPrefix = firstPath.substring(0, firstPath.indexOf('/') + 1);
-
-          const metadata: FileMetadata[] = filesWithPath.map((f) => ({ path: f.webkitRelativePath, size: f.size }));
-
-          getProcessingWorker()?.postMessage({
-            type: 'filter-files',
-            payload: { metadata, gitignoreContent, rootPrefix, settings: get().settings }
+            payload: { metadata, gitignoreContent, settings: get().settings }
           });
         },
 

@@ -56,13 +56,8 @@ pub struct FileMetadata {
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct FilterOptions {
-    #[serde(default = "default_true")]
-    pub text_only: bool,
     #[serde(default = "default_max_file_size")]
     pub max_file_size: u32,
-}
-fn default_true() -> bool {
-    true
 }
 fn default_max_file_size() -> u32 {
     2 * 1024 * 1024
@@ -75,6 +70,9 @@ pub struct ProcessingOptions {
     #[serde(default = "default_true")]
     pub show_token_count: bool,
 }
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct MarkdownOptions {
@@ -82,91 +80,10 @@ pub struct MarkdownOptions {
     pub include_path_headers: bool,
 }
 
-static TEXT_EXTENSIONS: &[&str] = &[
-    "js",
-    "ts",
-    "tsx",
-    "jsx",
-    "json",
-    "md",
-    "mdx",
-    "html",
-    "css",
-    "scss",
-    "sass",
-    "less",
-    "styl",
-    "postcss",
-    "py",
-    "pyi",
-    "rb",
-    "php",
-    "sh",
-    "bash",
-    "zsh",
-    "ps1",
-    "bat",
-    "cmd",
-    "rs",
-    "go",
-    "java",
-    "c",
-    "cpp",
-    "h",
-    "hpp",
-    "cs",
-    "txt",
-    "yml",
-    "yaml",
-    "xml",
-    "toml",
-    "ini",
-    "cfg",
-    "conf",
-    "config",
-    "env",
-    "mod",
-    "sum",
-    "lock",
-    "dockerfile",
-    "gitignore",
-    "gitattributes",
-    "editorconfig",
-    "prettierrc",
-    "eslintrc",
-    "sql",
-    "graphql",
-    "gql",
-    "vue",
-    "svelte",
-    "astro",
-    "mjs",
-    "cjs",
-    "mts",
-    "cts",
-];
-
-static SPECIAL_FILENAMES: &[&str] = &["dockerfile", "makefile", "license", "readme"];
-
-fn is_likely_text_file(path: &str) -> bool {
-    if let Some(extension) = path.rsplit('.').next() {
-        if TEXT_EXTENSIONS.contains(&extension.to_lowercase().as_str()) {
-            return true;
-        }
-    }
-
-    if let Some(filename) = path.rsplit('/').next() {
-        return SPECIAL_FILENAMES.contains(&filename.to_lowercase().as_str());
-    }
-
-    false
-}
-
 #[wasm_bindgen]
 pub fn filter_files(
     metadata_js: JsValue,
     gitignore_content: String,
-    _root_prefix: String,
     options_js: JsValue,
 ) -> Result<JsValue, JsValue> {
     set_panic_hook();
@@ -219,10 +136,6 @@ pub fn filter_files(
             }
 
             if meta.size > options.max_file_size {
-                return None;
-            }
-
-            if options.text_only && !is_likely_text_file(relative_path) {
                 return None;
             }
 

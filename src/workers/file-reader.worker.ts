@@ -42,9 +42,17 @@ self.onmessage = async (event: MessageEvent<ReadFilesMessage>) => {
   }
 
   try {
-    const { files, pathsToRead, processingWorkerPort } = payload;
+    const { files, pathsToRead } = payload;
 
-    console.log("File Reader Worker's Files: ", files)
+    // Remove ./ prefix from paths if present in files
+    files.forEach(f => {
+      if (f.path.startsWith('./')) {
+        f.path = f.path.slice(2);
+      }
+    });
+
+    console.log('Files:', files);
+    console.log('Paths to read:', pathsToRead);
 
     // Create a map for quick file lookup
     const fileMap = new Map(files.map((f) => [f.path, f.file]));
@@ -90,8 +98,6 @@ self.onmessage = async (event: MessageEvent<ReadFilesMessage>) => {
       self.postMessage(progressMessage);
     }
 
-    console.log(`[FileReader Worker] Successfully read ${fileInputs.length} text files`);
-
     // Send results back to main thread
     const result: ReadCompleteMessage = {
       type: 'read-complete',
@@ -102,15 +108,6 @@ self.onmessage = async (event: MessageEvent<ReadFilesMessage>) => {
     };
 
     self.postMessage(result);
-
-    // If we have a processing worker port, send files directly to processing worker
-    if (processingWorkerPort) {
-      console.log('[FileReader Worker] Forwarding files to processing worker...');
-      processingWorkerPort.postMessage({
-        type: 'process-files-direct',
-        payload: { fileInputs }
-      });
-    }
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -124,5 +121,3 @@ self.onmessage = async (event: MessageEvent<ReadFilesMessage>) => {
     self.postMessage(errorResult);
   }
 };
-
-console.log('[FileReader Worker] File reader worker loaded and ready.');

@@ -3,7 +3,7 @@ import init, * as WasmModule from '@/wasm-module/contexter_wasm.js';
 import type { FileNode, FileInput, FilterOptions, MarkdownOptions, ProcessingOptions, ProcessingResult, FileMetadata } from '@/lib/types';
 
 type WasmApi = {
-  filter_files(metadata: FileMetadata[], gitignoreContent: string, rootPrefix: string, options: FilterOptions): { paths: string[]; processingTimeMs: number };
+  filter_files(metadata: FileMetadata[], gitignoreContent: string, options: FilterOptions): { paths: string[]; processingTimeMs: number };
   process_files(files: FileInput[], options: ProcessingOptions): ProcessingResult;
   merge_files_to_markdown(files: FileInput[], options: MarkdownOptions): string;
   recalculate_counts(tree: FileNode[], options: ProcessingOptions): FileNode[];
@@ -28,7 +28,7 @@ self.onmessage = async (event: MessageEvent) => {
 
     switch (type) {
       case 'filter-files': {
-        const result = wasm.filter_files(payload.metadata, payload.gitignoreContent, payload.rootPrefix, payload.settings);
+        const result = wasm.filter_files(payload.metadata, payload.gitignoreContent, payload.settings);
         self.postMessage({ type: 'filter-complete', payload: result });
         break;
       }

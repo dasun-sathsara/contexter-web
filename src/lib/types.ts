@@ -44,7 +44,6 @@ export interface ProcessingOptions {
 }
 
 export interface FilterOptions {
-  text_only: boolean;
   max_file_size: number;
 }
 
