@@ -41,7 +41,7 @@ export const scopeGitignoreContent = (
   };
 
   const lines = content.split(/\r?\n/);
-  for (let raw of lines) {
+  for (const raw of lines) {
     // Trim only right side to preserve trailing slash semantics
     let line = raw.replace(/\s+$/, '');
     if (!line) continue;

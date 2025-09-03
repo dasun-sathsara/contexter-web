@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { enableMapSet } from 'immer';
 import { FileNode, FileInput, VimMode, ProcessingResult, Settings, FileMetadata } from '@/lib/types';
-import { buildCombinedGitignoreContent } from '@/lib/utils';
+import { buildCombinedGitignoreContent } from '@/lib/gitignore-combine';
 import { toast } from 'sonner';
 import { FileWithPath } from 'react-dropzone';
 
@@ -85,7 +85,6 @@ interface FileState {
 const defaultSettings: Settings = {
   hideEmptyFolders: true,
   showTokenCount: true,
-  maxFileSize: 2 * 1024 * 1024,
   keybindingMode: 'standard',
 };
 
@@ -326,15 +325,29 @@ export const useFileStore = create<FileState>()(
       const directoryWorkerInstance = getDirectoryWorker();
       if (directoryWorkerInstance) {
         directoryWorkerInstance.onmessage = (event: MessageEvent) => {
-          const { type, payload } = event.data as { type: string; payload: any };
+          const { type, payload } = event.data as {
+            type: string;
+            payload: { message: string } | { entries: { path: string; handle: FileSystemFileHandle; size: number }[] } | string;
+          };
           switch (type) {
             case 'read-progress': {
-              set({ statusMessage: payload.message });
+              const progressPayload = payload as { message: string };
+              set({ statusMessage: progressPayload.message });
+              break;
+            }
+            case 'scan-complete': {
+              const scanPayload = payload as { entries: { path: string; handle: FileSystemFileHandle; size: number }[] };
+              set({ statusMessage: `Reading ${scanPayload.entries.length} files...` });
+              getReaderWorker()?.postMessage({
+                type: 'read-handles',
+                payload: { entries: scanPayload.entries }
+              });
               break;
             }
             case 'read-error': {
-              set({ isLoading: false, statusMessage: `Error: ${payload}` });
-              toast.error("An error occurred while reading files.", { description: payload });
+              const errorPayload = payload as string;
+              set({ isLoading: false, statusMessage: `Error: ${errorPayload}` });
+              toast.error("An error occurred while reading files.", { description: errorPayload });
               break;
             }
           }
@@ -614,28 +627,20 @@ export const useFileStore = create<FileState>()(
 
         selectFolder: async () => {
           try {
-            if (typeof (window as any).showDirectoryPicker !== 'function') {
+            if (typeof window.showDirectoryPicker !== 'function') {
               toast.error('Folder selection not supported in this browser.');
               return;
             }
-            set({ isLoading: true, statusMessage: 'Selecting folder...', fileTree: [], fileMap: new Map() });
-            const handle: FileSystemDirectoryHandle = await (window as any).showDirectoryPicker({ mode: 'read' });
-            set({ statusMessage: 'Scanning project files...' });
+            set({ fileTree: [], fileMap: new Map() });
+            const handle: FileSystemDirectoryHandle = await window.showDirectoryPicker({ mode: 'read' });
+            set({ isLoading: true, statusMessage: 'Scanning project files...' });
 
-            // Bridge directory worker to reader worker via MessageChannel
-            const rw = getReaderWorker();
-            const dw = getDirectoryWorker();
-            if (!rw || !dw) {
-              set({ isLoading: false, statusMessage: 'Error: Workers not available.' });
-              toast.error('Failed to initialize workers.');
-              return;
-            }
-            const channel = new MessageChannel();
-            rw.postMessage({ type: 'connect-port', payload: { port: channel.port1 } }, [channel.port1]);
-            dw.postMessage({
+            // Orchestrate: ask directory worker to traverse; it will reply with scan-complete
+            getDirectoryWorker()?.postMessage({
               type: 'traverse-directory',
-              payload: { rootHandle: handle, settings: get().settings, readerPort: channel.port2 }
-            }, [channel.port2]);
+              payload: { rootHandle: handle, settings: get().settings }
+            });
+
           } catch (err) {
             const e = err as { name?: string };
             if (e && e.name === 'AbortError') {

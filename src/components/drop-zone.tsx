@@ -28,7 +28,7 @@ export function DropZone() {
   const [folderPickerSupported, setFolderPickerSupported] = useState<boolean | null>(null);
   useEffect(() => {
     setFolderPickerSupported(
-      typeof window !== 'undefined' && typeof (window as any).showDirectoryPicker === 'function'
+      typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function'
     );
   }, []);
 
