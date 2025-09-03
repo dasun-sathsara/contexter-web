@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useDropzone } from 'react-dropzone';
+import { FileWithPath, useDropzone } from 'react-dropzone';
 import { useFileStore } from '@/stores/file-store';
 import { UploadCloud } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,7 @@ export function DropZone() {
   const { processDroppedFiles, isLoading, statusMessage } = useFileStore();
 
   const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
+    (acceptedFiles: FileWithPath[]) => {
       processDroppedFiles(acceptedFiles);
     },
     [processDroppedFiles]
