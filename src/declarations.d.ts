@@ -7,6 +7,9 @@ declare global {
   interface Window {
     showDirectoryPicker(options?: { mode?: 'read' | 'readwrite' }): Promise<FileSystemDirectoryHandle>;
   }
+  interface FileSystemDirectoryHandle {
+    values(): AsyncIterable<FileSystemHandle>;
+  }
 }
 
 declare module '*.worker.ts' {

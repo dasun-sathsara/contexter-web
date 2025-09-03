@@ -1,5 +1,6 @@
 import type { FileInput } from '@/lib/types';
 import { FileWithPath } from 'react-dropzone';
+import { isTextFile } from '@/lib/textfile-check';
 
 
 interface ReadFilesMessage {
@@ -11,17 +12,10 @@ interface ReadFilesMessage {
   };
 }
 
-interface ConnectPortMessage {
-  type: 'connect-port';
-  payload: {
-    port: MessagePort;
-  };
-}
-
 interface ReadHandlesMessage {
   type: 'read-handles';
   payload: {
-    entries: { path: string; handle: FileSystemFileHandle; size: number }[];
+    entries: { path: string; handle: FileSystemFileHandle }[];
   };
 }
 
@@ -45,81 +39,6 @@ interface ReadProgressMessage {
 interface ReadErrorMessage {
   type: 'read-error';
   payload: string;
-}
-
-/**
- * Heuristic check: determine if a file is likely text by inspecting its first bytes.
- * - Reads up to 8000 bytes
- * - If too many non-printable control characters are found, treat as binary
- */
-async function isProbablyTextFile(file: File): Promise<boolean> {
-  const CHUNK_SIZE = 8000;
-  const blob = file.slice(0, CHUNK_SIZE);
-  const buffer = await blob.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-
-  let nonPrintable = 0;
-  for (let i = 0; i < bytes.length; i++) {
-    const byte = bytes[i];
-    // Allow common whitespace and printable ASCII
-    if (
-      byte === 9 || // tab
-      byte === 10 || // LF
-      byte === 13 || // CR
-      (byte >= 32 && byte <= 126)
-    ) {
-      continue;
-    }
-    // Allow extended UTF-8 (>127) tentatively
-    if (byte >= 128) {
-      continue;
-    }
-    nonPrintable++;
-  }
-
-  // If more than 5% of bytes are non-printable, assume binary
-  const ratio = nonPrintable / bytes.length;
-  return ratio < 0.05;
-}
-
-/**
- * Decide if a file is text:
- * - Prefer MIME type if available
- * - Otherwise, fall back to byte-level heuristic
- */
-async function isTextFile(file: File): Promise<boolean> {
-  if (file.type) {
-    const lower = file.type.toLowerCase();
-    if (lower.startsWith('text/')) {
-      return true;
-    }
-    if (
-      lower.includes('json') ||
-      lower.includes('xml') ||
-      lower.includes('yaml') ||
-      lower.includes('javascript') ||
-      lower.includes('typescript') ||
-      lower.includes('html') ||
-      lower.includes('css') ||
-      lower.includes('csv') ||
-      lower.includes('markdown')
-    ) {
-      return true;
-    }
-    // If MIME type clearly indicates binary (image, audio, video, etc.)
-    if (
-      lower.startsWith('image/') ||
-      lower.startsWith('audio/') ||
-      lower.startsWith('video/') ||
-      lower === 'application/pdf' ||
-      lower.startsWith('application/zip') ||
-      lower.startsWith('application/x-')
-    ) {
-      return false;
-    }
-    // Otherwise, fall back to heuristic
-  }
-  return isProbablyTextFile(file);
 }
 
 function handleReadFromDroppedFiles(payload: ReadFilesMessage['payload']): Promise<void> {
@@ -236,30 +155,13 @@ function handleReadFromHandles(entries: ReadHandlesMessage['payload']['entries']
   });
 }
 
-let connectedPort: MessagePort | null = null;
-
-self.onmessage = async (event: MessageEvent<ReadFilesMessage | ConnectPortMessage | ReadHandlesMessage>) => {
-  const { type, payload } = event.data as any;
+self.onmessage = async (event: MessageEvent<ReadFilesMessage | ReadHandlesMessage>) => {
+  const { type, payload } = event.data;
 
   switch (type) {
     case 'read-files':
       await handleReadFromDroppedFiles((payload as ReadFilesMessage['payload']));
       break;
-    case 'connect-port': {
-      const { port } = payload as ConnectPortMessage['payload'];
-      connectedPort = port;
-      connectedPort.onmessage = async (ev: MessageEvent<ReadHandlesMessage>) => {
-        if ((ev.data as any)?.type === 'read-handles') {
-          const entries = (ev.data as ReadHandlesMessage).payload.entries;
-          await handleReadFromHandles(entries);
-        }
-      };
-      // Some browsers require start()
-      try {
-        connectedPort.start?.();
-      } catch { }
-      break;
-    }
     case 'read-handles': {
       const entries = (payload as ReadHandlesMessage['payload']).entries;
       await handleReadFromHandles(entries);

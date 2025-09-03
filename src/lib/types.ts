@@ -34,7 +34,6 @@ export type KeybindingMode = 'vim' | 'standard';
 export interface Settings {
   hideEmptyFolders: boolean;
   showTokenCount: boolean;
-  maxFileSize: number;
   keybindingMode: KeybindingMode;
 }
 
