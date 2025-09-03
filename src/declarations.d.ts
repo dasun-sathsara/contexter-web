@@ -4,6 +4,9 @@ declare global {
       webkitdirectory?: string;
     }
   }
+  interface Window {
+    showDirectoryPicker(options?: { mode?: 'read' | 'readwrite' }): Promise<FileSystemDirectoryHandle>;
+  }
 }
 
 declare module '*.worker.ts' {
@@ -26,5 +29,13 @@ declare module '*file-reader.worker.ts' {
   }
   export default FileReaderWorker;
 }
+
+declare module '*directory-traverser.worker.ts' {
+  class DirectoryTraverserWorker extends Worker {
+    constructor();
+  }
+  export default DirectoryTraverserWorker;
+}
+
 
 export { };
