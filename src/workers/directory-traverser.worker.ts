@@ -1,5 +1,5 @@
 import { scopeGitignoreContent, normalizeRel } from '@/lib/gitignore-scope';
-import type { FileInput, Settings } from '@/lib/types';
+import type { Settings } from '@/lib/types';
 import ignore from 'ignore';
 
 type TraverseMessage = {
@@ -7,6 +7,7 @@ type TraverseMessage = {
   payload: {
     rootHandle: FileSystemDirectoryHandle;
     settings: Settings;
+    readerPort?: MessagePort;
   };
 };
 
@@ -19,17 +20,15 @@ type ReadProgressMessage = {
   };
 };
 
-type ReadCompleteMessage = {
-  type: 'read-complete';
-  payload: {
-    fileInputs: FileInput[];
-    rootFileContents: Map<string, string>;
-  };
-};
-
-type ReadErrorMessage = {
+type ScanErrorMessage = {
   type: 'read-error';
   payload: string;
+};
+
+type FileEntryForReader = {
+  path: string;
+  handle: FileSystemFileHandle;
+  size: number;
 };
 
 const joinRel = (base: string, child: string): string => {
@@ -105,9 +104,8 @@ self.onmessage = async (event: MessageEvent<TraverseMessage>) => {
   if (type !== 'traverse-directory') return;
 
   try {
-    const { rootHandle, settings } = payload;
-    const fileInputs: FileInput[] = [];
-    const rootFileContents = new Map<string, string>();
+    const { rootHandle, settings, readerPort } = payload;
+    const entriesForReader: FileEntryForReader[] = [];
 
     const queue: Array<{
       handle: FileSystemDirectoryHandle;
@@ -192,9 +190,8 @@ self.onmessage = async (event: MessageEvent<TraverseMessage>) => {
               continue;
             }
 
-            const content = await file.text();
-            fileInputs.push({ path: relPath, content });
-            rootFileContents.set(relPath, content);
+            // Do not read content here; defer to reader worker
+            entriesForReader.push({ path: relPath, handle: fileHandle, size: file.size });
             processed++;
 
             if (processed % 25 === 0) {
@@ -202,7 +199,7 @@ self.onmessage = async (event: MessageEvent<TraverseMessage>) => {
                 type: 'read-progress',
                 payload: {
                   processed,
-                  message: `Reading files... (${processed})`,
+                  message: `Queued files for reading... (${processed})`,
                 },
               };
               self.postMessage(msg);
@@ -214,14 +211,20 @@ self.onmessage = async (event: MessageEvent<TraverseMessage>) => {
       }
     }
 
-    const result: ReadCompleteMessage = {
-      type: 'read-complete',
-      payload: { fileInputs, rootFileContents },
-    };
-    self.postMessage(result);
+    // Hand off to reader worker if a port was provided
+    if (readerPort) {
+      readerPort.postMessage({
+        type: 'read-handles',
+        payload: { entries: entriesForReader },
+      });
+    } else {
+      // If no reader port provided, emit an error so the main thread can handle it
+      const err: ScanErrorMessage = { type: 'read-error', payload: 'Reader port not provided.' };
+      self.postMessage(err);
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const err: ReadErrorMessage = { type: 'read-error', payload: errorMessage };
+    const err: ScanErrorMessage = { type: 'read-error', payload: errorMessage };
     self.postMessage(err);
   }
 };
