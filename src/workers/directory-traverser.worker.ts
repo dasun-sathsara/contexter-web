@@ -65,7 +65,7 @@ self.onmessage = async (event: MessageEvent<TraverseMessage>) => {
 
     // Root-level patterns from root .gitignore (if any)
     const rootPatterns = await readGitignoreForDir(rootHandle, '');
-    queue.push({ handle: rootHandle, rel: '', patterns: rootPatterns });
+    queue.push({ handle: rootHandle, rel: rootHandle.name, patterns: rootPatterns });
 
     let processed = 0;
 
@@ -87,16 +87,17 @@ self.onmessage = async (event: MessageEvent<TraverseMessage>) => {
             if (entry.kind === 'directory') {
               // If parent rules ignore this directory, skip entire subtree
               const dirTest = relForIgnore.endsWith('/') ? relForIgnore : relForIgnore + '/';
+
               if (ig.ignores(dirTest)) {
                 continue;
               }
 
               const dirHandle = await handle.getDirectoryHandle(name);
-              // Load nested .gitignore for this directory
               const localPatterns = await readGitignoreForDir(dirHandle, relPath);
               const combined = patterns.concat(localPatterns);
               queue.push({ handle: dirHandle, rel: relPath, patterns: combined });
             } else if (entry.kind === 'file') {
+
               if (ig.ignores(relForIgnore)) {
                 continue;
               }

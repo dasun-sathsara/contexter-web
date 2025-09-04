@@ -49,6 +49,7 @@
         "tailwindcss": "^4",
         "tw-animate-css": "^1.3.5",
         "typescript": "^5",
+        "vitest": "^3.2.4",
         "worker-loader": "^3.0.8"
     }
 }

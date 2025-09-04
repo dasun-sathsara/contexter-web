@@ -1,6 +1,6 @@
 /**
  * Build scoped gitignore rules for a specific base directory.
-**/
+ **/
 export const normalizeRel = (p: string): string => {
   // Normalize to posix, drop leading "./", collapse slashes
   let s = p.replace(/\\/g, '/').replace(/^\.\/+/, '');
@@ -21,18 +21,14 @@ const joinRel = (base: string, child: string): string => {
  * Convert a .gitignore file's content within baseDir (relative to the root
  * of the selected folder) into patterns usable by the "ignore" library.
 **/
-
-// Semantics:
-// "/foo" in baseDir -> "<baseDir>/foo" anchored to root: we keep the leading slash
-//    - "foo/bar" in baseDir -> "/<baseDir>/foo/bar"
-//    - "name" in baseDir -> "/<baseDir>/**/name"
-//    - Negation "!" preserved
-//    - Escaped "#", "!" supported
 export const scopeGitignoreContent = (
   baseDirRel: string, // e.g. "", "src", "src/auth"
   content: string,
 ): string[] => {
   const base = normalizeRel(baseDirRel);
+  // anchorBase is the effective base directory
+  const anchorBase = base;
+
   const out: string[] = [];
 
   const add = (rule: string) => {
@@ -77,22 +73,25 @@ export const scopeGitignoreContent = (
 
     let scoped: string;
     if (anchoredToBase || containsSlash) {
-      // Anchor to base directory within the project root
+      // Anchor to base directory
       // Example:
       //  - "/build" in "src" -> "/src/build"
       //  - "foo/bar" in "src" -> "/src/foo/bar"
-      const prefixed = base ? joinRel(base, normalizedPattern) : normalizedPattern;
-      scoped = `/${prefixed}`;
+      const baseForRule = anchorBase;
+      const prefixed = baseForRule
+        ? joinRel(baseForRule, normalizedPattern)
+        : normalizedPattern;
+      scoped = `/${prefixed}`.replace(/\/{2,}/g, '/');
     } else {
       // Name-only patterns match at any depth beneath the base dir
       // Example:
       //  - "secret.yaml" in "src" -> "/src/**/secret.yaml"
-      const pattern = base ? `${base}/**/${normalizedPattern}` : `**/${normalizedPattern}`;
-      scoped = `/${pattern}`;
+      const baseForRule = anchorBase;
+      const pattern = baseForRule
+        ? `${baseForRule}/**/${normalizedPattern}`
+        : `**/${normalizedPattern}`;
+      scoped = `/${pattern}`.replace(/\/{2,}/g, '/');
     }
-
-    // Normalize slashes
-    scoped = scoped.replace(/\/{2,}/g, '/');
 
     if (negated) add('!' + scoped);
     else add(scoped);
