@@ -1,6 +1,7 @@
 import type { FileInput } from '@/lib/types';
 import { FileWithPath } from 'react-dropzone';
 import { isTextFile } from '@/lib/textfile-check';
+import { normalizeRootRelativePath } from '@/lib/path-utils';
 
 
 interface ReadFilesMessage {
@@ -45,8 +46,7 @@ function handleReadFromDroppedFiles(payload: ReadFilesMessage['payload']): Promi
   return new Promise(async (resolve) => {
     try {
       const { files, pathsToRead } = payload;
-
-      const fileMap = new Map(files.map((f) => [f.path, f.file]));
+      const fileMap = new Map(files.map((f) => [normalizeRootRelativePath(f.path), f.file]));
 
       const fileInputs: FileInput[] = [];
       const rootFileContents = new Map<string, string>();

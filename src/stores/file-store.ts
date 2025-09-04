@@ -6,6 +6,7 @@ import { FileNode, FileInput, VimMode, ProcessingResult, Settings, FileMetadata 
 import { buildCombinedGitignoreContent } from '@/lib/gitignore-combine';
 import { toast } from 'sonner';
 import { FileWithPath } from 'react-dropzone';
+import { normalizeRootRelativePath } from '@/lib/path-utils';
 
 enableMapSet();
 
@@ -126,7 +127,6 @@ export const useFileStore = create<FileState>()(
           switch (type) {
             case 'filter-complete': {
               if (payload && Array.isArray(payload.paths) && payload.paths.length > 0) {
-                console.log('Filtered Files to Process:', payload.paths.slice(0, 10));
                 _readAndProcessFiles(payload.paths);
               } else {
                 toast.error("No files found to process.");
@@ -375,11 +375,9 @@ export const useFileStore = create<FileState>()(
           set({ isLoading: true, statusMessage: 'Analyzing project structure...', fileTree: [], fileMap: new Map() });
           pendingFiles = files;
 
-          const gitignoreContent = await buildCombinedGitignoreContent(
-            files,
-          );
+          const gitignoreContent = await buildCombinedGitignoreContent(files);
 
-          const metadata: FileMetadata[] = files.map((f) => ({ path: f.path!, size: f.size }));
+          const metadata: FileMetadata[] = files.map((f) => ({ path: normalizeRootRelativePath(f.path!), size: f.size }));
 
           getProcessingWorker()?.postMessage({
             type: 'filter-files',
