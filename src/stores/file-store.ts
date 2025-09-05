@@ -93,6 +93,7 @@ export const useFileStore = create<FileState>()(
   persist(
     immer((set, get) => {
       const _readAndProcessFiles = async (pathsToRead: string[]) => {
+
         if (!pendingFiles) {
           toast.error("An internal error occurred: pending files not found.");
           set({ isLoading: false, statusMessage: 'Error: Could not find files to read.' });
@@ -379,6 +380,7 @@ export const useFileStore = create<FileState>()(
 
           const metadata: FileMetadata[] = files.map((f) => ({ path: normalizeRootRelativePath(f.path!), size: f.size }));
 
+          // Send metadata to processing worker for filtering
           getProcessingWorker()?.postMessage({
             type: 'filter-files',
             payload: { metadata, gitignoreContent }

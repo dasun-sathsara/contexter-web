@@ -11,7 +11,6 @@ type WasmApi = {
 
 const wasmInitPromise: Promise<WasmApi> = init()
   .then(() => {
-    console.log('[Worker] WASM module initialized successfully.');
     return WasmModule as unknown as WasmApi;
   })
   .catch(error => {
@@ -37,12 +36,6 @@ self.onmessage = async (event: MessageEvent) => {
         self.postMessage({ type: 'processing-complete', payload: result });
         break;
       }
-      case 'process-files-direct': {
-        // Handle files sent directly from the reader worker
-        const result = wasm.process_files(payload.fileInputs, payload.settings || {});
-        self.postMessage({ type: 'processing-complete', payload: result });
-        break;
-      }
       case 'merge-files': {
         const result = wasm.merge_files_to_markdown(payload.files, payload.options);
         // Forward toastId and action if present
@@ -62,5 +55,3 @@ self.onmessage = async (event: MessageEvent) => {
     self.postMessage({ type: 'processing-error', payload: errorMessage });
   }
 };
-
-console.log('[Worker] File processor worker loaded and ready.');
