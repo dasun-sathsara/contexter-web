@@ -64,8 +64,9 @@ self.onmessage = async (event: MessageEvent<TraverseMessage>) => {
     }> = [];
 
     // Root-level patterns from root .gitignore (if any)
-    const rootPatterns = await readGitignoreForDir(rootHandle, '');
+    const rootPatterns = await readGitignoreForDir(rootHandle, rootHandle.name);
     queue.push({ handle: rootHandle, rel: rootHandle.name, patterns: rootPatterns });
+
 
     let processed = 0;
 
@@ -84,8 +85,13 @@ self.onmessage = async (event: MessageEvent<TraverseMessage>) => {
             const relPath = joinRel(rel, name);
             const relForIgnore = normalizeRel(relPath);
 
+            // Filter out the .git directory entirely
+            if (entry.kind === 'directory' && name === '.git') {
+              continue;
+            }
+
             if (entry.kind === 'directory') {
-              // If parent rules ignore this directory, skip entire subtree
+
               const dirTest = relForIgnore.endsWith('/') ? relForIgnore : relForIgnore + '/';
 
               if (ig.ignores(dirTest)) {

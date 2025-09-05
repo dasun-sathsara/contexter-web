@@ -42,10 +42,6 @@ export interface ProcessingOptions {
   show_token_count: boolean;
 }
 
-export interface FilterOptions {
-  max_file_size: number;
-}
-
 export interface MarkdownOptions {
   include_path_headers?: boolean;
 }

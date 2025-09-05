@@ -55,15 +55,6 @@ pub struct FileMetadata {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-pub struct FilterOptions {
-    #[serde(default = "default_max_file_size")]
-    pub max_file_size: u32,
-}
-fn default_max_file_size() -> u32 {
-    2 * 1024 * 1024
-}
-
-#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ProcessingOptions {
     #[serde(default = "default_true")]
     pub hide_empty_folders: bool,
@@ -81,17 +72,12 @@ pub struct MarkdownOptions {
 }
 
 #[wasm_bindgen]
-pub fn filter_files(
-    metadata_js: JsValue,
-    gitignore_content: String,
-    options_js: JsValue,
-) -> Result<JsValue, JsValue> {
+pub fn filter_files(metadata_js: JsValue, gitignore_content: String) -> Result<JsValue, JsValue> {
     set_panic_hook();
     let start_time = js_sys::Date::now();
 
     let metadata: Vec<FileMetadata> = serde_wasm_bindgen::from_value(metadata_js)
         .map_err(|e| JsValue::from_str(&format!("Failed to parse metadata: {}", e)))?;
-    let options: FilterOptions = serde_wasm_bindgen::from_value(options_js).unwrap_or_default();
 
     let mut gitignore_builder = GitignoreBuilder::new(".");
     for (idx, raw_line) in gitignore_content.lines().enumerate() {
@@ -120,6 +106,11 @@ pub fn filter_files(
                 &meta.path
             };
 
+            // Filter out the .git directory and its contents
+            if relative_path.starts_with(".git/") || relative_path == ".git" {
+                return None;
+            }
+
             if relative_path.is_empty() {
                 return None;
             }
@@ -133,10 +124,6 @@ pub fn filter_files(
 
             if is_dir {
                 return Some(meta.path);
-            }
-
-            if meta.size > options.max_file_size {
-                return None;
             }
 
             Some(meta.path)

@@ -187,13 +187,12 @@ function takeFromExternrefTable0(idx) {
 /**
  * @param {any} metadata_js
  * @param {string} gitignore_content
- * @param {any} options_js
  * @returns {any}
  */
-export function filter_files(metadata_js, gitignore_content, options_js) {
+export function filter_files(metadata_js, gitignore_content) {
     const ptr0 = passStringToWasm0(gitignore_content, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.filter_files(metadata_js, ptr0, len0, options_js);
+    const ret = wasm.filter_files(metadata_js, ptr0, len0);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }

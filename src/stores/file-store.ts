@@ -381,7 +381,7 @@ export const useFileStore = create<FileState>()(
 
           getProcessingWorker()?.postMessage({
             type: 'filter-files',
-            payload: { metadata, gitignoreContent, settings: get().settings }
+            payload: { metadata, gitignoreContent }
           });
         },
 
