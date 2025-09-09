@@ -125,26 +125,28 @@ export const useFileStore = create<FileState>()(
                 processingWorkerInstance.onmessage = (event: MessageEvent) => {
                     const { type, payload } = event.data;
 
-                    switch (type) {
-                        case 'filter-complete': {
-                            if (payload && Array.isArray(payload.paths) && payload.paths.length > 0) {
-                                _readAndProcessFiles(payload.paths);
-                            } else {
-                                toast.error("No files found to process.");
-                                set({ isLoading: false, statusMessage: 'Error: No files found to process.' });
-                            }
-                            break;
-                        }
-                        case 'processing-complete': {
-                            const result = payload as ProcessingResult;
-                            const fileMap = new Map<string, FileNode>();
-                            const traverse = (nodes: FileNode[]) => {
-                                for (const node of nodes) {
-                                    fileMap.set(node.path, node);
-                                    if (node.children?.length > 0) traverse(node.children);
-                                }
-                            };
-                            traverse(result.file_tree);
+          switch (type) {
+            case 'filter-complete': {
+              if (payload && Array.isArray(payload.paths) && payload.paths.length > 0) {
+                _readAndProcessFiles(payload.paths);
+              } else {
+                toast.error("No files found to process.");
+                set({ isLoading: false, statusMessage: 'Error: No files found to process.' });
+              }
+              break;
+            }
+            case 'processing-complete': {
+              const result = payload as ProcessingResult;
+              const fileMap = new Map<string, FileNode>();
+              const traverse = (nodes: FileNode[]) => {
+                for (const node of nodes) {
+                  fileMap.set(node.path, node);
+                  if (node.children?.length > 0) traverse(node.children);
+                }
+              };
+              traverse(result.file_tree);
+
+
 
                             set(state => {
                                 state.fileTree = result.file_tree;

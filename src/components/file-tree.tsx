@@ -6,13 +6,27 @@ import { FileTreeItem } from './file-tree-item';
 import { useFileStore } from '@/stores/file-store';
 import { FolderTree, FileIcon } from 'lucide-react';
 import { LoadingSpinner } from './ui/loading-spinner';
+import { useEffect, useRef } from 'react';
 
 interface FileTreeProps {
   items: FileNode[];
 }
 
 export function FileTree({ items }: FileTreeProps) {
-  const { currentFolderPath, navigateBack, isLoading } = useFileStore();
+  const { currentFolderPath, navigateBack, isLoading, cursorPath } = useFileStore();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+
+  // Scroll to the item with the cursorPath when it changes
+  useEffect(() => {
+    if (containerRef.current && cursorPath) {
+      const selector = `[data-path="${CSS.escape(cursorPath)}"]`
+      const element = containerRef.current.querySelector<HTMLElement>(selector);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [cursorPath])
 
   if (isLoading) {
     return (
@@ -46,7 +60,7 @@ export function FileTree({ items }: FileTreeProps) {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 min-h-0">
+      <ScrollArea className="flex-1 min-h-0" ref={containerRef}>
         <div className="p-4">
           <div className="space-y-1">
             {currentFolderPath && (
