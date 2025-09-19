@@ -74,6 +74,22 @@ export function SettingsSheet() {
                   </p>
                 </div>
               </div>
+
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="directories-on-top"
+                  checked={settings.directoriesOnTop}
+                  onCheckedChange={(checked) => setSettings({ directoriesOnTop: !!checked })}
+                />
+                <div className="grid gap-1 leading-tight">
+                  <Label htmlFor="directories-on-top" className="text-sm font-medium">
+                    Show directories first
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Keep folders grouped above files in the file tree.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 

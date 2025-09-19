@@ -18,7 +18,7 @@ export const handleStandardKeys = (
 
     const isHandledKey =
         /^(ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Enter|Escape| |Delete|Home|End)$/i.test(key) ||
-        (ctrlOrMeta && /^(a|c|s|A|C|S|Enter|Delete)$/i.test(key));
+        (ctrlOrMeta && /^(x|a|c|s|t|A|C|S|T|Enter|Delete)$/i.test(key));
 
     if (!isHandledKey) return;
 
@@ -116,6 +116,10 @@ export const handleStandardKeys = (
                 return;
             case 'delete':
                 handleDelete();
+                return;
+            case 'x':
+                console.log("Pressed ctrl+x");
+                store.toggleSortByTokens();
                 return;
         }
     }

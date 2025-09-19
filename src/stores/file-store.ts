@@ -11,6 +11,51 @@ import { normalizeRootRelativePath } from '@/lib/path-utils';
 enableMapSet();
 
 
+const createSortComparator = (sortByTokens: boolean, directoriesOnTop: boolean) => {
+    return (a: FileNode, b: FileNode): number => {
+        if (directoriesOnTop && a.is_dir !== b.is_dir) {
+            return a.is_dir ? -1 : 1;
+        }
+
+        if (sortByTokens) {
+            const tokenDiff = (b.token_count ?? 0) - (a.token_count ?? 0);
+            if (tokenDiff !== 0) return tokenDiff;
+        }
+
+        return a.name.localeCompare(b.name);
+    };
+};
+
+const sortTree = (nodes: FileNode[], sortByTokens: boolean, directoriesOnTop: boolean): FileNode[] => {
+    const sortFn = createSortComparator(sortByTokens, directoriesOnTop);
+
+    return nodes
+        .map(node => ({
+            ...node,
+            children: node.children ? sortTree(node.children, sortByTokens, directoriesOnTop) : [],
+        }))
+        .sort(sortFn);
+};
+
+const buildFileMap = (nodes: FileNode[]): Map<string, FileNode> => {
+    const map = new Map<string, FileNode>();
+    const traverse = (items: FileNode[]) => {
+        for (const node of items) {
+            map.set(node.path, node);
+            if (node.children?.length) traverse(node.children);
+        }
+    };
+    traverse(nodes);
+    return map;
+};
+
+const sortTreeAndRebuildMap = (nodes: FileNode[], sortByTokens: boolean, directoriesOnTop: boolean) => {
+    const sortedTree = sortTree(nodes, sortByTokens, directoriesOnTop);
+    const map = buildFileMap(sortedTree);
+    return { sortedTree, map };
+};
+
+
 // --- Worker Management ---
 
 let processingWorker: Worker | null = null;
@@ -56,9 +101,11 @@ interface FileState {
     isLoading: boolean;
     statusMessage: string;
     settings: Settings;
+    sortByTokens: boolean;
     currentFolderPath: string | null;
     navigationStack: string[];
     vimMode: VimMode;
+    vimPendingKey: string | null;
     selectedPaths: Set<string>;
     cursorPath: string | null;
     visualAnchorPath: string | null;
@@ -74,6 +121,7 @@ interface FileState {
     toggleSelection: (path: string) => void;
     setSelection: (paths: Set<string>) => void;
     setVimMode: (mode: VimMode) => void;
+    setVimPendingKey: (key: string | null) => void;
     setVisualAnchor: (path: string | null) => void;
     yankToClipboard: (pathsToYank?: Set<string>) => void;
     saveToFile: (pathsToSave?: Set<string>) => void;
@@ -81,12 +129,14 @@ interface FileState {
     openPreview: (path: string) => void;
     closePreview: () => void;
     selectFolder: () => Promise<void>;
+    toggleSortByTokens: () => void;
 }
 
 const defaultSettings: Settings = {
     hideEmptyFolders: true,
     showTokenCount: true,
     keybindingMode: 'standard',
+    directoriesOnTop: true,
 };
 
 export const useFileStore = create<FileState>()(
@@ -125,35 +175,31 @@ export const useFileStore = create<FileState>()(
                 processingWorkerInstance.onmessage = (event: MessageEvent) => {
                     const { type, payload } = event.data;
 
-          switch (type) {
-            case 'filter-complete': {
-              if (payload && Array.isArray(payload.paths) && payload.paths.length > 0) {
-                _readAndProcessFiles(payload.paths);
-              } else {
-                toast.error("No files found to process.");
-                set({ isLoading: false, statusMessage: 'Error: No files found to process.' });
-              }
-              break;
-            }
-            case 'processing-complete': {
-              const result = payload as ProcessingResult;
-              const fileMap = new Map<string, FileNode>();
-              const traverse = (nodes: FileNode[]) => {
-                for (const node of nodes) {
-                  fileMap.set(node.path, node);
-                  if (node.children?.length > 0) traverse(node.children);
-                }
-              };
-              traverse(result.file_tree);
-
-
+                    switch (type) {
+                        case 'filter-complete': {
+                            if (payload && Array.isArray(payload.paths) && payload.paths.length > 0) {
+                                _readAndProcessFiles(payload.paths);
+                            } else {
+                                toast.error("No files found to process.");
+                                set({ isLoading: false, statusMessage: 'Error: No files found to process.' });
+                            }
+                            break;
+                        }
+                        case 'processing-complete': {
+                            const result = payload as ProcessingResult;
+                            const { sortByTokens, settings } = get();
+                            const { sortedTree, map } = sortTreeAndRebuildMap(
+                                result.file_tree,
+                                sortByTokens,
+                                settings.directoriesOnTop,
+                            );
 
                             set(state => {
-                                state.fileTree = result.file_tree;
-                                state.fileMap = fileMap;
+                                state.fileTree = sortedTree;
+                                state.fileMap = map;
                                 state.isLoading = false;
                                 state.statusMessage = `Processed ${result.total_files} files (${(result.total_size / 1024).toFixed(1)} KB)`;
-                                state.cursorPath = result.file_tree[0]?.path ?? null;
+                                state.cursorPath = sortedTree[0]?.path ?? null;
                             });
                             toast.success("Project processed successfully!", {
                                 description: `${result.total_files} files loaded in ${result.processing_time_ms.toFixed(0)}ms.`
@@ -259,18 +305,15 @@ export const useFileStore = create<FileState>()(
                         }
                         case 'recalculation-complete': {
                             const { fileTree: recalculatedTree } = payload;
-                            const newFileMap = new Map<string, FileNode>();
-                            const traverse = (nodes: FileNode[]) => {
-                                for (const node of nodes) {
-                                    newFileMap.set(node.path, node);
-                                    if (node.children?.length > 0) traverse(node.children);
-                                }
-                            };
-                            traverse(recalculatedTree);
+                            const { sortedTree, map } = sortTreeAndRebuildMap(
+                                recalculatedTree,
+                                get().sortByTokens,
+                                get().settings.directoriesOnTop,
+                            );
 
                             set({
-                                fileTree: recalculatedTree,
-                                fileMap: newFileMap,
+                                fileTree: sortedTree,
+                                fileMap: map,
                                 statusMessage: 'Project totals updated.',
                             });
                             break;
@@ -364,9 +407,11 @@ export const useFileStore = create<FileState>()(
                 isLoading: false,
                 statusMessage: 'Ready. Drop a folder to get started.',
                 settings: defaultSettings,
+                sortByTokens: false,
                 currentFolderPath: null,
                 navigationStack: [],
                 vimMode: 'normal',
+                vimPendingKey: null,
                 selectedPaths: new Set(),
                 cursorPath: null,
                 visualAnchorPath: null,
@@ -408,7 +453,17 @@ export const useFileStore = create<FileState>()(
                                 state.vimMode = 'normal';
                                 state.selectedPaths.clear();
                                 state.visualAnchorPath = null;
+                                state.vimPendingKey = null;
                                 toast.info(`Keybindings set to ${updatedSettings.keybindingMode === 'vim' ? 'VIM' : 'Standard'}.`);
+                            }
+                            if (oldSettings.directoriesOnTop !== updatedSettings.directoriesOnTop && state.fileTree.length > 0) {
+                                const { sortedTree, map } = sortTreeAndRebuildMap(
+                                    state.fileTree,
+                                    state.sortByTokens,
+                                    updatedSettings.directoriesOnTop,
+                                );
+                                state.fileTree = sortedTree;
+                                state.fileMap = map;
                             }
                         });
 
@@ -422,13 +477,29 @@ export const useFileStore = create<FileState>()(
                     }
                 },
 
+                toggleSortByTokens: () => {
+                    set(state => {
+                        state.sortByTokens = !state.sortByTokens;
+                        if (state.fileTree.length > 0) {
+                            const { sortedTree, map } = sortTreeAndRebuildMap(
+                                state.fileTree,
+                                state.sortByTokens,
+                                state.settings.directoriesOnTop,
+                            );
+                            state.fileTree = sortedTree;
+                            state.fileMap = map;
+                        }
+                        state.statusMessage = `Sorting: ${state.sortByTokens ? 'Token count' : 'Name'}`;
+                    });
+                },
+
                 clearAll: () => {
                     set({
                         fileTree: [], fileMap: new Map(), rootFiles: new Map(),
                         isLoading: false, statusMessage: 'Ready. Drop a folder to get started.',
                         currentFolderPath: null, navigationStack: [], selectedPaths: new Set(),
                         cursorPath: null, vimMode: 'normal', visualAnchorPath: null,
-                        previewedFilePath: null,
+                        previewedFilePath: null, vimPendingKey: null,
                     });
                     toast.info("Project cleared.");
                 },
@@ -469,11 +540,17 @@ export const useFileStore = create<FileState>()(
                 setSelection: (paths) => set({ selectedPaths: new Set(paths) }),
                 setVimMode: (mode) => {
                     if (mode === 'visual' && get().cursorPath) {
-                        set({ vimMode: 'visual', visualAnchorPath: get().cursorPath, selectedPaths: new Set([get().cursorPath!]) });
+                        set({
+                            vimMode: 'visual',
+                            visualAnchorPath: get().cursorPath,
+                            selectedPaths: new Set([get().cursorPath!]),
+                            vimPendingKey: null,
+                        });
                     } else {
-                        set({ vimMode: 'normal', visualAnchorPath: null, selectedPaths: new Set() });
+                        set({ vimMode: 'normal', visualAnchorPath: null, selectedPaths: new Set(), vimPendingKey: null });
                     }
                 },
+                setVimPendingKey: (key) => set({ vimPendingKey: key }),
                 setVisualAnchor: (path) => set({ visualAnchorPath: path }),
 
                 yankToClipboard: (pathsToYank) => {
@@ -587,19 +664,14 @@ export const useFileStore = create<FileState>()(
                                     };
                                 });
                         };
-                        state.fileTree = filterAndResetTree(state.fileTree);
-
-                        const newFileMap = new Map<string, FileNode>();
-                        const traverseAndPopulateMap = (nodes: FileNode[]) => {
-                            for (const node of nodes) {
-                                newFileMap.set(node.path, node);
-                                if (node.children?.length > 0) {
-                                    traverseAndPopulateMap(node.children);
-                                }
-                            }
-                        };
-                        traverseAndPopulateMap(state.fileTree);
-                        state.fileMap = newFileMap;
+                        const prunedTree = filterAndResetTree(state.fileTree);
+                        const { sortedTree, map } = sortTreeAndRebuildMap(
+                            prunedTree,
+                            state.sortByTokens,
+                            state.settings.directoriesOnTop,
+                        );
+                        state.fileTree = sortedTree;
+                        state.fileMap = map;
 
                         state.selectedPaths.clear();
                         state.vimMode = 'normal';

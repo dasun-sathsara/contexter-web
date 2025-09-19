@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 type FileStore = ReturnType<typeof useFileStore.getState>;
 type UpdateVisualSelection = (newCursorPath: string, view: FileNode[]) => void;
 
+let vimPendingTimeout: number | null = null;
+
 export const handleVimKeys = (
     e: KeyboardEvent,
     view: FileNode[],
@@ -13,7 +15,7 @@ export const handleVimKeys = (
     updateVisualSelection: UpdateVisualSelection,
 ) => {
     const store = storeRef.current;
-    const isHandledKey = /^(w|j|k|h|l|G|g|v|V|y|d|s|C|o| |Enter|Escape|ArrowUp|ArrowDown|ArrowLeft|ArrowRight)$/.test(e.key);
+    const isHandledKey = /^(w|j|k|h|l|G|g|t|v|V|y|d|s|C|o| |Enter|Escape|ArrowUp|ArrowDown|ArrowLeft|ArrowRight)$/.test(e.key);
     if (isHandledKey) e.preventDefault();
     else return;
 
@@ -56,6 +58,39 @@ export const handleVimKeys = (
         exitVisualMode();
     };
 
+    const clearPending = () => {
+        if (typeof window !== 'undefined' && vimPendingTimeout !== null) {
+            window.clearTimeout(vimPendingTimeout);
+            vimPendingTimeout = null;
+        }
+        if (store.vimPendingKey) store.setVimPendingKey(null);
+    };
+
+    if (store.vimPendingKey) {
+        if (store.vimPendingKey === 'g' && e.key === 't') {
+            clearPending();
+            store.toggleSortByTokens();
+            return;
+        }
+        clearPending();
+    }
+
+    const primeGoSequence = () => {
+        store.setVimPendingKey('g');
+        if (typeof window !== 'undefined') {
+            if (vimPendingTimeout !== null) {
+                window.clearTimeout(vimPendingTimeout);
+            }
+            vimPendingTimeout = window.setTimeout(() => {
+                const latestStore = storeRef.current;
+                if (latestStore.vimPendingKey === 'g') {
+                    latestStore.setVimPendingKey(null);
+                }
+                vimPendingTimeout = null;
+            }, 500);
+        }
+    };
+
     if (store.vimMode === 'normal') {
         switch (e.key) {
             case 'j':
@@ -87,7 +122,10 @@ export const handleVimKeys = (
                     store.closePreview();
                 }
             case 'g':
-                if (!e.repeat) goTo('first');
+                if (!e.repeat) {
+                    primeGoSequence();
+                    goTo('first');
+                }
                 break;
             case 'G':
                 goTo('last');
@@ -137,7 +175,10 @@ export const handleVimKeys = (
                 moveCursor(-1);
                 break;
             case 'g':
-                if (!e.repeat) goTo('first');
+                if (!e.repeat) {
+                    primeGoSequence();
+                    goTo('first');
+                }
                 break;
             case 'G':
                 goTo('last');
