@@ -8,7 +8,11 @@ if (!fs.existsSync(destDir)) {
   fs.mkdirSync(destDir, { recursive: true });
 }
 
-const essentialFiles = ['contexter_wasm.js', 'contexter_wasm_bg.wasm'];
+const essentialFiles = [
+  'contexter_wasm.js',
+  'contexter_wasm_bg.js',
+  'contexter_wasm_bg.wasm',
+];
 
 let copiedCount = 0;
 for (const file of essentialFiles) {

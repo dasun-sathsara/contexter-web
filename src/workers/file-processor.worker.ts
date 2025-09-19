@@ -1,4 +1,4 @@
-import init, * as WasmModule from '@/wasm-module/contexter_wasm.js';
+import * as WasmModule from '@/wasm-module/contexter_wasm.js';
 
 import type { FileNode, FileInput, MarkdownOptions, ProcessingOptions, ProcessingResult, FileMetadata } from '@/lib/types';
 
@@ -9,15 +9,16 @@ type WasmApi = {
   recalculate_counts(tree: FileNode[], options: ProcessingOptions): FileNode[];
 };
 
-const wasmInitPromise: Promise<WasmApi> = init()
-  .then(() => {
+const wasmInitPromise: Promise<WasmApi> = (async () => {
+  try {
+    // The generated bundle initializes itself on import, so we can expose the exports directly.
     return WasmModule as unknown as WasmApi;
-  })
-  .catch(error => {
+  } catch (error) {
     console.error('[Worker] Failed to initialize WASM:', error);
     self.postMessage({ type: 'processing-error', payload: 'Failed to load core processing module.' });
     throw error;
-  });
+  }
+})();
 
 self.onmessage = async (event: MessageEvent) => {
   const { type, payload } = event.data;

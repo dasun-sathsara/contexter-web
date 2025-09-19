@@ -12,6 +12,14 @@ const nextConfig: NextConfig = {
       layers: true,
     };
 
+    config.output = {
+      ...config.output,
+      environment: {
+        ...(config.output?.environment ?? {}),
+        asyncFunction: true,
+      },
+    };
+
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
