@@ -14,7 +14,8 @@ WORKDIR /app
 
 # Copy only the wasm source and build it.
 COPY ./wasm ./wasm
-RUN wasm-pack build ./wasm --target web --out-dir pkg
+# Use the `bundler` target so the generated JS exports are compatible with our Next.js bundling strategy.
+RUN wasm-pack build ./wasm --target bundler --out-dir pkg
 
 
 # Stage 2: Build the Next.js application
